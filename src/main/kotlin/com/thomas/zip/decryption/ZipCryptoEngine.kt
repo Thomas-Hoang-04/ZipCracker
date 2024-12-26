@@ -1,6 +1,6 @@
-package com.thomas.zip.utility
+package com.thomas.zip.decryption
 
-class PKZIPDecryption {
+class ZipCryptoEngine {
     private val keys: LongArray = orgKeys.copyOf()
 
     companion object {
@@ -11,10 +11,11 @@ class PKZIPDecryption {
         )
         private const val POLY: Long = 0xedb88320
         private val table: LongArray = LongArray(256)
+
         init {
             for (i in 0 until 256) {
                 var crc = i.toLong()
-                for (j in 0 until 8) {
+                repeat(8) {
                     crc = if (crc and 1 == 1L)
                         (crc shr 1) xor POLY
                     else
@@ -56,12 +57,8 @@ class PKZIPDecryption {
         return decrypted
     }
 
-    fun dataDecrypt(data: ByteArray): ByteArray {
-        val decrypted = ByteArray(data.size)
-        for (i in data.indices) {
-            decrypted[i] = (data[i].toInt() xor decryptByte()).toByte()
-            updateKeys(decrypted[i].toInt().toChar())
-        }
-        return decrypted
+    fun resetKeys() {
+        for (i in 0 until 3)
+            keys[i] = orgKeys[i]
     }
 }

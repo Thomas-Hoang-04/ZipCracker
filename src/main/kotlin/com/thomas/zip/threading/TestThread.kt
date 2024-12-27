@@ -49,8 +49,7 @@ fun threadDistribution(
     val workerPerThread = workerCount / (mask.countOneBits())
     for (opIdx in cpuOpIdx)
         repeat (workerPerThread) {
-//            maskQueue.addLast(1 shl opIdx)
-            maskQueue.addLast(opIdx)
+            maskQueue.addLast(1 shl opIdx)
         }
 }
 
@@ -59,15 +58,17 @@ class Producer(
     private val workerCount: Int,
     private val mask: Int
 ): Thread() {
-    private val pwdPath = System.getProperty("user.dir") + "/output/pwd_6.txt"
+    private val pwdPath = System.getProperty("user.dir") + "/output/pwd.txt"
     override fun run() {
         val handle: WinNT.HANDLE = Kernel32.INSTANCE.GetCurrentThread()
         val inst: Affinity = Native.load("Kernel32", Affinity::class.java) as Affinity
-        inst.SetThreadAffinityMask(handle, mask)
-        File(pwdPath).forEachLine {
-            queue.put(it)
+        inst.SetThreadAffinityMask(handle, 0x400)
+        val reader = File(pwdPath).bufferedReader()
+        for (line in reader.lineSequence()) {
+            queue.put(line)
             pwdEntered++
         }
+        reader.close()
         repeat(workerCount) {
             queue.put("@finish")
         }
@@ -104,27 +105,35 @@ class Tracker(
     companion object {
         private val outputFile = System.getProperty("user.dir") + "/output/last_pwd.txt"
     }
+    private val speedCount = mutableListOf<Int>()
     override fun run() {
         val handle: WinNT.HANDLE = Kernel32.INSTANCE.GetCurrentThread()
         val inst: Affinity = Native.load("Kernel32", Affinity::class.java) as Affinity
-        inst.SetThreadAffinityMask(handle, mask)
+        inst.SetThreadAffinityMask(handle, 0x400)
         val outputDest = File(outputFile)
+        var lastPwdCount = 0
         var lastConsumed: String? = null
         while (trackerRunning) {
             if (lastPwd == lastConsumed) continue
             lastConsumed = lastPwd
             outputDest.writeText(lastConsumed ?: "none")
-            print("\rPassword processed: $pwdConsumed")
+            print("\u001B[2A")
+            val speed = pwdConsumed - lastPwdCount
+            lastPwdCount = pwdConsumed
+            print("\rSpeed: ${speed}/cycle")
+            print(" | Password consumed: $pwdConsumed")
+            speedCount.add(speed)
+            print(" | Avg speed: ${speedCount.average().toInt()}/cycle")
             sleep(2000)
         }
     }
 }
 
 fun test(mask: Int, worker: Int) {
-    val handle: WinNT.HANDLE = Kernel32.INSTANCE.GetCurrentProcess()
+    val handle: WinNT.HANDLE = Kernel32.INSTANCE.GetCurrentThread()
 
     val inst: Affinity = Native.load("Kernel32", Affinity::class.java) as Affinity
-    inst.SetProcessAffinityMask(handle, mask)
+    inst.SetThreadAffinityMask(handle, mask)
 
     val cores = Runtime.getRuntime().availableProcessors()
     println("Testing AES decryption")
@@ -135,9 +144,9 @@ fun test(mask: Int, worker: Int) {
     threadDistribution(mask, worker, distribution)
     val latch = CountDownLatch(worker)
 
-//    val filename = System.getProperty("user.dir") + "/src/main/resources/test_2_pk.zip"
+//    val filename = System.getProperty("user.dir") + "/resources/test_2_pk.zip"
 //    val decryptor = ZipCryptoDecryptor(filename)
-    val filename = System.getProperty("user.dir") + "/src/main/resources/hello_aes.zip"
+    val filename = System.getProperty("user.dir") + "/resources/hello_aes.zip"
     val decryptor = AESDecryptor(filename)
 
     val pwdQueue: BlockingQueue<String> = LinkedBlockingQueue(1000 * worker)
@@ -177,7 +186,7 @@ fun test(mask: Int, worker: Int) {
 
     println("\nPassword found: $ans")
 
-    val path = System.getProperty("user.dir") + "/src/main/resources/result_pwd.txt"
+    val path = System.getProperty("user.dir") + "/resources/result_pwd.txt"
     FileOutputStream(path, true).bufferedWriter().use { out ->
         out.write("Test time: ${LocalDate.now().format(
             DateTimeFormatter.ofPattern("dd/MM/yyyy")
@@ -200,11 +209,11 @@ fun test(mask: Int, worker: Int) {
 fun main() {
     val cores = Runtime.getRuntime().availableProcessors()
     val maxMask = (1 shl cores) - 1
-    val masks: List<Int> = listOf(0xFFC)
+    val masks: List<Int> = listOf(0xFFF)
     for (mask in masks) {
         if (mask > maxMask) continue
         pwdEntered = 0
         pwdConsumed = 0
-        test(mask, mask.countOneBits() * 6)
+        test(mask, mask.countOneBits())
     }
 }

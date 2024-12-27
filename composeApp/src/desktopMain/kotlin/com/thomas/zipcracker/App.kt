@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.unit.dp
+import com.thomas.zipcracker.component.CloseDialog
 
 import zipcracker.composeapp.generated.resources.Res
 import zipcracker.composeapp.generated.resources.compose_multiplatform
@@ -39,10 +40,4 @@ fun App() {
             }
         }
     }
-}
-
-@Preview
-@Composable
-fun AppPreview() {
-    App()
 }

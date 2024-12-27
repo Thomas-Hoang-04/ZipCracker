@@ -40,10 +40,12 @@ compose.desktop {
 
         nativeDistributions {
             targetFormats(TargetFormat.Msi, TargetFormat.Deb, TargetFormat.Exe)
-            packageName = "com.thomas.zipcracker"
+            packageName = "ZipCracker"
             packageVersion = "1.0.0"
 
             windows {
+                packageVersion = "1.0.0"
+                packageName = "ZipCracker"
                 iconFile.set(file("ZipCracker.ico"))
             }
         }

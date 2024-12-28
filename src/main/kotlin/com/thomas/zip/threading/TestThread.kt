@@ -58,11 +58,11 @@ class Producer(
     private val workerCount: Int,
     private val mask: Int
 ): Thread() {
-    private val pwdPath = System.getProperty("user.dir") + "/output/pwd.txt"
+    private val pwdPath = System.getProperty("user.dir") + "/output/pwd_6.txt"
     override fun run() {
         val handle: WinNT.HANDLE = Kernel32.INSTANCE.GetCurrentThread()
         val inst: Affinity = Native.load("Kernel32", Affinity::class.java) as Affinity
-        inst.SetThreadAffinityMask(handle, 0x400)
+        inst.SetThreadAffinityMask(handle, mask)
         val reader = File(pwdPath).bufferedReader()
         for (line in reader.lineSequence()) {
             queue.put(line)
@@ -72,6 +72,7 @@ class Producer(
         repeat(workerCount) {
             queue.put("@finish")
         }
+        println("Producer stopped")
     }
 }
 
@@ -80,7 +81,8 @@ class Consumer<T>(
     private val latch: CountDownLatch,
     private val mask: Int,
     private val decryptor: Decryptor<T>,
-    private val resultQueue: ConcurrentLinkedQueue<String>
+    private val resultQueue: ConcurrentLinkedQueue<String>,
+    private val pseudoWorker: Boolean = false
 ): Thread() {
     override fun run() {
         val handle: WinNT.HANDLE = Kernel32.INSTANCE.GetCurrentThread()
@@ -95,7 +97,9 @@ class Consumer<T>(
             if (decryptor.checkPassword(pwd)) resultQueue.add(pwd)
             lastPwd = pwd
             pwdConsumed++
+            if (pseudoWorker) sleep(1)
         }
+        println("Thread $mask stopped")
     }
 }
 
@@ -109,7 +113,7 @@ class Tracker(
     override fun run() {
         val handle: WinNT.HANDLE = Kernel32.INSTANCE.GetCurrentThread()
         val inst: Affinity = Native.load("Kernel32", Affinity::class.java) as Affinity
-        inst.SetThreadAffinityMask(handle, 0x400)
+        inst.SetThreadAffinityMask(handle, mask)
         val outputDest = File(outputFile)
         var lastPwdCount = 0
         var lastConsumed: String? = null
@@ -117,7 +121,6 @@ class Tracker(
             if (lastPwd == lastConsumed) continue
             lastConsumed = lastPwd
             outputDest.writeText(lastConsumed ?: "none")
-            print("\u001B[2A")
             val speed = pwdConsumed - lastPwdCount
             lastPwdCount = pwdConsumed
             print("\rSpeed: ${speed}/cycle")
@@ -126,6 +129,7 @@ class Tracker(
             print(" | Avg speed: ${speedCount.average().toInt()}/cycle")
             sleep(2000)
         }
+        println("\nTracker stopped")
     }
 }
 
@@ -151,8 +155,9 @@ fun test(mask: Int, worker: Int) {
 
     val pwdQueue: BlockingQueue<String> = LinkedBlockingQueue(1000 * worker)
     val result: ConcurrentLinkedQueue<String> = ConcurrentLinkedQueue()
-    val producer = Producer(pwdQueue, worker, 0x1E0)
-    val tracker = Tracker(0xC00)
+    val producer = Producer(pwdQueue, worker, 0x001)
+    val tracker = Tracker(0x001)
+
     repeat(worker) {
         val assigned = distribution.removeFirst()
 //        println("CPU Assigned: $assigned")
@@ -161,7 +166,8 @@ fun test(mask: Int, worker: Int) {
             latch = latch,
             mask = assigned,
             decryptor = decryptor,
-            resultQueue = result
+            resultQueue = result,
+            pseudoWorker = assigned == 0x001
         ))
     }
 
@@ -176,7 +182,7 @@ fun test(mask: Int, worker: Int) {
         producer.join()
         latch.await()
         Thread.sleep(50)
-        if (latch.count == 0L) trackerRunning = false
+        trackerRunning = false
         tracker.join()
     }
 
@@ -201,9 +207,6 @@ fun test(mask: Int, worker: Int) {
 
         out.close()
     }
-
-    val folder = File(System.getProperty("user.dir") + "/src/main/resources/test")
-    folder.listFiles()?.forEach { it.delete() }
 }
 
 fun main() {

@@ -68,7 +68,7 @@ class Producer(
     override fun run() {
         val handle: WinNT.HANDLE = Kernel32.INSTANCE.GetCurrentThread()
         val inst: Affinity = Native.load("Kernel32", Affinity::class.java) as Affinity
-        inst.SetThreadAffinityMask(handle, 0x400)
+        inst.SetThreadAffinityMask(handle, mask)
         val reader = File(pwdPath).bufferedReader()
         for (line in reader.lineSequence()) {
             if (stop) return
@@ -97,7 +97,8 @@ class Consumer<T>(
     private val latch: CountDownLatch,
     private val mask: Int,
     private val decryptor: Decryptor<T>,
-    private val resultQueue: ConcurrentLinkedQueue<String>
+    private val resultQueue: ConcurrentLinkedQueue<String>,
+    private val pseudoWorker: Boolean = false
 ): Thread() {
     override fun run() {
         val handle: WinNT.HANDLE = Kernel32.INSTANCE.GetCurrentThread()
@@ -110,6 +111,7 @@ class Consumer<T>(
             if (decryptor.checkPassword(pwd)) resultQueue.add(pwd)
             lastPwd = pwd
             pwdConsumed++
+            if (pseudoWorker) sleep(4)
         }
     }
 }
@@ -122,7 +124,7 @@ class Tracker(
     override fun run() {
         val handle: WinNT.HANDLE = Kernel32.INSTANCE.GetCurrentThread()
         val inst: Affinity = Native.load("Kernel32", Affinity::class.java) as Affinity
-        inst.SetThreadAffinityMask(handle, 0x400)
+        inst.SetThreadAffinityMask(handle, mask)
         val outputDest = File(outputFile)
         var lastPwdCount = 0
         var lastConsumed: String? = null
@@ -163,8 +165,9 @@ fun test(mask: Int, worker: Int, threadPool: MutableList<Thread>) {
 
     val pwdQueue: BlockingQueue<String> = LinkedBlockingQueue(1000 * worker)
     val result: ConcurrentLinkedQueue<String> = ConcurrentLinkedQueue()
-    threadPool.add(Producer(pwdQueue, worker, 0x1E0))
-    threadPool.add(Tracker(0xC00))
+    threadPool.add(Producer(pwdQueue, worker, 0x001))
+    threadPool.add(Tracker(0x001))
+
     repeat(worker) {
         val assigned = distribution.removeFirst()
 //        println("CPU Assigned: $assigned")
@@ -174,7 +177,8 @@ fun test(mask: Int, worker: Int, threadPool: MutableList<Thread>) {
                 latch = latch,
                 mask = assigned,
                 decryptor = decryptor,
-                resultQueue = result
+                resultQueue = result,
+                pseudoWorker = assigned == 0x001
             )
         )
     }

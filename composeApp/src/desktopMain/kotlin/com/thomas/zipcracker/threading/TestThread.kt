@@ -1,42 +1,24 @@
 package com.thomas.zipcracker.threading
 
+import androidx.compose.runtime.MutableState
 import com.sun.jna.Native
 import com.sun.jna.platform.win32.Kernel32
 import com.sun.jna.platform.win32.WinNT
-import com.thomas.zipcracker.decryption.AESDecryptor
-import com.thomas.zipcracker.decryption.Decryptor
-import com.thomas.zipcracker.decryption.ZipCryptoDecryptor
+import com.thomas.zipcracker.component.CrackingOptions
+import com.thomas.zipcracker.processor.AESDecryptor
+import com.thomas.zipcracker.processor.Decryptor
+import com.thomas.zipcracker.processor.OpMode
+import com.thomas.zipcracker.processor.Watcher
+import com.thomas.zipcracker.processor.ZIPStatus
+import com.thomas.zipcracker.processor.ZipCryptoDecryptor
 import com.thomas.zipcracker.utility.masterPath
 import java.io.File
-import java.io.FileOutputStream
-import java.time.LocalDate
-import java.time.format.DateTimeFormatter
-import kotlin.system.measureTimeMillis
-import kotlin.concurrent.Volatile
 import java.util.concurrent.BlockingQueue
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
-import kotlin.time.Duration.Companion.milliseconds
-
-@Volatile
-var stop = false
-
-@Volatile
-var pause = false
-
-@Volatile
-var pwdEntered: Int = 0
-
-@Volatile
-var pwdConsumed: Int = 0
-
-@Volatile
-var lastPwd: String? = null
-
-@Volatile
-var trackerRunning: Boolean = true
+import kotlin.math.pow
 
 fun findOperationCPUIndex(mask: Int): List<Int> {
     val res = mutableListOf<Int>()
@@ -59,36 +41,86 @@ fun threadDistribution(
         }
 }
 
-class Producer(
+
+class DictProducer(
     private val queue: BlockingQueue<String>,
     private val workerCount: Int,
-    private val mask: Int
+    private val mask: Int,
+    private val pwdPath: String
 ): Thread() {
-    private val pwdPath = "$masterPath/resources/output/pwd_6.txt"
     override fun run() {
         val handle: WinNT.HANDLE = Kernel32.INSTANCE.GetCurrentThread()
         val inst: Affinity = Native.load("Kernel32", Affinity::class.java) as Affinity
         inst.SetThreadAffinityMask(handle, mask)
         val reader = File(pwdPath).bufferedReader()
-        for (line in reader.lineSequence()) {
-            if (stop) return
-            while (pause) {
-                if (stop) { reader.close(); return }
+        outer@ for (line in reader.lineSequence()) {
+            if (Watcher.stop) break@outer
+            while (Watcher.pause) {
+                if (Watcher.stop) break@outer
                 sleep(250)
             }
-            while (!queue.offer(line, 1, TimeUnit.SECONDS)) {
-                if (stop) { reader.close(); return }
-                sleep(5)
+            while (!queue.offer(line, 5, TimeUnit.MILLISECONDS)) {
+                continue@outer
             }
-            pwdEntered++
+            Watcher.pwdEntered++
         }
         reader.close()
-        if (stop) return
-        repeat(workerCount) {
-            if (stop) return
-            while (pause) { if (stop) return; sleep(250) }
-            queue.put("@finish")
+        if (Watcher.stop) return
+        repeat(workerCount) { queue.put("@finish") }
+    }
+}
+
+class BruteProducer(
+    private val queue: BlockingQueue<String>,
+    private val workerCount: Int,
+    private val mask: Int,
+    private val maxSize: Int,
+    private val pwdOptions: Int,
+): Thread() {
+    private val chars: List<Char> = run {
+        val chars = mutableListOf<Char>()
+        if (pwdOptions and 0x01 != 0) chars.addAll(('a'..'z'))
+        if (pwdOptions and 0x02 != 0) chars.addAll(('A'..'Z'))
+        if (pwdOptions and 0x04 != 0) chars.addAll(('0'..'9'))
+        if (pwdOptions and 0x08 != 0) chars.addAll("!@#$%^&*()_+-=[]{}|;:,.<>?".toList())
+        Watcher.maxPassword = chars.size.toDouble().pow(maxSize.toDouble()).toInt()
+        chars
+    }
+    private fun backtrack(current: StringBuilder, length: Int) {
+        if (Watcher.stop) return
+        if (current.length == length) {
+            while (!queue.offer(current.toString(), 5, TimeUnit.MILLISECONDS)) {
+                continue
+            }
+            Watcher.pwdEntered++
+            return
         }
+        track@ for (char in chars) {
+            while (Watcher.pause) {
+                if (Watcher.stop) break
+                sleep(250)
+            }
+            current.append(char)
+            backtrack(current, length)
+            current.deleteCharAt(current.lastIndex)
+        }
+    }
+    override fun run() {
+        val handle: WinNT.HANDLE = Kernel32.INSTANCE.GetCurrentThread()
+        val inst: Affinity = Native.load("Kernel32", Affinity::class.java) as Affinity
+        inst.SetThreadAffinityMask(handle, mask)
+        try {
+            outer@ for (length in 1..maxSize) {
+                if (Watcher.stop) break@outer
+                while (Watcher.pause) {
+                    if (Watcher.stop) break@outer
+                    sleep(250)
+                }
+                backtrack(StringBuilder(), length)
+            }
+            if (Watcher.stop) return
+            repeat(workerCount) { queue.put("@finish") }
+        } catch (e: InterruptedException) { e.toString() }
     }
 }
 
@@ -104,15 +136,23 @@ class Consumer<T>(
         val handle: WinNT.HANDLE = Kernel32.INSTANCE.GetCurrentThread()
         val inst: Affinity = Native.load("Kernel32", Affinity::class.java) as Affinity
         inst.SetThreadAffinityMask(handle, mask)
-        while (!stop) {
-            if (pause) { sleep(250); continue }
-            val pwd = queue.poll(1, TimeUnit.SECONDS) ?: continue
-            if (pwd == "@finish") { latch.countDown(); break }
-            if (decryptor.checkPassword(pwd)) resultQueue.add(pwd)
-            lastPwd = pwd
-            pwdConsumed++
-            if (pseudoWorker) sleep(4)
-        }
+        try {
+            outer@ while (!Watcher.stop) {
+                if (Watcher.pause) { sleep(250); continue@outer }
+                val pwd: String? = queue.poll(5, TimeUnit.MILLISECONDS)
+                if (pwd == null) {
+                    if (Watcher.stop) break@outer
+                    continue@outer
+                }
+                if (pwd == "@finish") break@outer
+                val res = decryptor.checkPassword(pwd)
+                if (res) resultQueue.add(pwd)
+                Watcher.lastPwd = pwd
+                Watcher.pwdConsumed++
+                if (pseudoWorker) sleep(10)
+            }
+        } catch (e: InterruptedException) { e.toString() }
+        finally { latch.countDown() }
     }
 }
 
@@ -120,7 +160,6 @@ class Tracker(
     private val mask: Int
 ): Thread() {
     private val outputFile = "$masterPath/resources/output/last_pwd.txt"
-    private val speedCount = mutableListOf<Int>()
     override fun run() {
         val handle: WinNT.HANDLE = Kernel32.INSTANCE.GetCurrentThread()
         val inst: Affinity = Native.load("Kernel32", Affinity::class.java) as Affinity
@@ -128,49 +167,76 @@ class Tracker(
         val outputDest = File(outputFile)
         var lastPwdCount = 0
         var lastConsumed: String? = null
-        while (trackerRunning && !stop) {
-            if (pause) { sleep(250); continue }
-            if (lastPwd == lastConsumed) continue
-            lastConsumed = lastPwd
-            outputDest.writeText(lastConsumed ?: "none")
-            val speed = pwdConsumed - lastPwdCount
-            speedCount.add(speed)
-            print("\rSpeed: ${speed}/cycle")
-            print(" | Password consumed: $pwdConsumed")
-            print(" | Avg speed: ${speedCount.average().toInt()}/cycle")
-            lastPwdCount = pwdConsumed
-            sleep(2000)
+        try {
+            while (Watcher.tracker && !Watcher.stop) {
+                if (Watcher.pause) { sleep(250); continue }
+                if (Watcher.lastPwd == lastConsumed) continue
+                lastConsumed = Watcher.lastPwd
+                outputDest.writeText(lastConsumed ?: "none")
+                val speed = Watcher.pwdConsumed - lastPwdCount
+                Watcher.speed = speed
+                lastPwdCount = Watcher.pwdConsumed
+                sleep(1000)
+            }
+        } catch (e: InterruptedException) { e.toString() }
+        finally {
+            outputDest.delete()
         }
     }
 }
 
-fun test(mask: Int, worker: Int, threadPool: MutableList<Thread>) {
+fun crack(
+    threadPool: MutableList<Thread>,
+    options: CrackingOptions,
+    result: ConcurrentLinkedQueue<String>,
+    error: MutableState<String?>,
+    isRunning: MutableState<Boolean>,
+    ended: MutableState<Boolean?>
+) {
+    val mask = options.threadMask
+    val worker = mask.countOneBits()
+    val decryptor: Decryptor<*> = when (options.encryption) {
+        ZIPStatus.AES_ENCRYPTION -> AESDecryptor(options.file.absolutePath)
+        ZIPStatus.STANDARD_ENCRYPTION-> ZipCryptoDecryptor(options.file.absolutePath)
+        else -> {
+            error.value = "Unknown encryption type"
+            return
+        }
+    }
+
+    Watcher.pwdEntered = 0
+    Watcher.pwdConsumed = 0
+
     val handle: WinNT.HANDLE = Kernel32.INSTANCE.GetCurrentThread()
 
     val inst: Affinity = Native.load("Kernel32", Affinity::class.java) as Affinity
     inst.SetThreadAffinityMask(handle, mask)
 
-    val cores = Runtime.getRuntime().availableProcessors()
-    println("Testing AES decryption")
-    println("Cores count: $cores")
-
     val distribution = ArrayDeque<Int>(worker)
     threadDistribution(mask, worker, distribution)
     val latch = CountDownLatch(worker)
 
-//    val filename = "$masterPath/resources/test_2_pk.zip"
-//    val decryptor = ZipCryptoDecryptor(filename)
-    val filename = "$masterPath/resources/hello_aes.zip"
-    val decryptor = AESDecryptor(filename)
-
-    val pwdQueue: BlockingQueue<String> = LinkedBlockingQueue(1000 * worker)
-    val result: ConcurrentLinkedQueue<String> = ConcurrentLinkedQueue()
-    threadPool.add(Producer(pwdQueue, worker, 0x001))
+    val pwdQueue: BlockingQueue<String> = LinkedBlockingQueue(2000 * worker)
+    when (options.opMode) {
+        OpMode.DICTIONARY -> DictProducer(pwdQueue, worker, 0x001,
+            (options.dictFile ?: run {
+                error.value = "Dictionary file not found"
+                isRunning.value = false
+                ended.value = null
+            return
+            }).absolutePath)
+        else -> BruteProducer(
+            queue = pwdQueue,
+            workerCount = worker,
+            mask = mask,
+            maxSize = options.maxPwdLength,
+            pwdOptions = options.pwdOptions
+        )
+    }.also { threadPool.add(it) }
     threadPool.add(Tracker(0x001))
 
     repeat(worker) {
         val assigned = distribution.removeFirst()
-//        println("CPU Assigned: $assigned")
         threadPool.add(
             Consumer(
                 queue = pwdQueue,
@@ -178,60 +244,29 @@ fun test(mask: Int, worker: Int, threadPool: MutableList<Thread>) {
                 mask = assigned,
                 decryptor = decryptor,
                 resultQueue = result,
-                pseudoWorker = assigned == 0x001
+                pseudoWorker = assigned == 0x1
             )
         )
     }
 
-    val time = measureTimeMillis {
-        threadPool.forEach {
-            if (it !is Tracker) it.priority = Thread.MAX_PRIORITY
-            it.start()
-        }
-        while (!stop) {
-            latch.await(1, TimeUnit.SECONDS)
-            if (latch.count == 0L) {
-                Thread.sleep(250)
-                trackerRunning = false
-                break
-            }
-        }
-        if (stop) println("\nStopping threads")
-        threadPool.forEach(Thread::join)
-        println("All threads stopped")
+    threadPool.forEach {
+        if (it !is Tracker) it.priority = Thread.MAX_PRIORITY
+        it.start()
     }
+    while (!Watcher.stop) {
+        latch.await(1, TimeUnit.SECONDS)
+        if (latch.count == 0L) {
+            Thread.sleep(250)
+            Watcher.tracker = false
+            break
+        }
+    }
+    if (Watcher.stop) { Watcher.tracker = false }
+    threadPool.forEach(Thread::join)
+    isRunning.value = false
+    ended.value = true
+    threadPool.clear()
 
-//    val ans = result.toTypedArray().let {
-//        if (it.isEmpty()) "none" else it.joinToString()
-//    }
-//
-//    println("\nPassword found: $ans")
-//
-//    val path = "$masterPath/resources/result_pwd.txt"
-//    FileOutputStream(path, true).bufferedWriter().use { out ->
-//        out.write("Test time: ${LocalDate.now().format(
-//            DateTimeFormatter.ofPattern("dd/MM/yyyy")
-//        )}, ${System.currentTimeMillis().milliseconds}\n")
-//        out.write("Cores count: $cores\n")
-//        out.write("- Operational CPU: ${findOperationCPUIndex(mask).joinToString()}\n")
-//        out.write("- Worker count: $worker\n")
-//        out.write("- Time: ${time.milliseconds}\n")
-//        out.write("- Password checked: $pwdEntered\n")
-//        out.write("- Password consumed: $pwdConsumed\n")
-//        out.write("- Password found: $ans\n\n")
-//
-//        out.close()
-//    }
+    println("Password found: ${result.poll()}")
 }
 
-fun testThread(threadPool: MutableList<Thread>) {
-    val cores = Runtime.getRuntime().availableProcessors()
-    val maxMask = (1 shl cores) - 1
-    val masks: List<Int> = listOf(0xFFF)
-    for (mask in masks) {
-        if (mask > maxMask) continue
-        pwdEntered = 0
-        pwdConsumed = 0
-        test(mask, mask.countOneBits(), threadPool)
-    }
-}

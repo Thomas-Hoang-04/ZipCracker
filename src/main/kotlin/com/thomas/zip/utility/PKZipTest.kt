@@ -6,7 +6,7 @@ import kotlin.system.measureTimeMillis
 import kotlin.time.Duration.Companion.milliseconds
 
 fun main() {
-    val filename = System.getProperty("user.dir") + "/src/main/resources/test_3_pk.zip"
+    val filename = System.getProperty("user.dir") + "/resources/test_3_pk_store.zip"
     val pwdFile = System.getProperty("user.dir") + "/output/pwd.txt"
     val pwdFile2 = System.getProperty("user.dir") + "/output/pwd_dict.txt"
     val randomWords = File(pwdFile).readLines() + File(pwdFile2).readLines()
@@ -23,6 +23,10 @@ fun main() {
 
         if (!found) {
             println("Password not found")
+        } else {
+            val decryptedStreams = instance.decryptedStreams
+            val sample = decryptedStreams.first()
+            println(sample.decodeToString())
         }
     }
 

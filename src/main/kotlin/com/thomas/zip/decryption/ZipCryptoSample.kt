@@ -5,7 +5,7 @@ data class ZipCryptoSample(
     val header: String,
     val data: String,
     val lastModTime: String,
-    val descriptorExist: Boolean
+    val compression: Compression,
 ) {
     fun getCRCHighByte(): Byte {
         return crc.chunked(2).first().toInt(16).toByte()

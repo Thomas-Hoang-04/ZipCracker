@@ -47,7 +47,7 @@ class ZipCryptoEngine {
         keys[2] = updateCRC(keys[2], (keys[1] shr 24).toInt().toChar().toString())
     }
 
-    fun headerDecrypt(data: ByteArray): ByteArray {
+    fun dataDecrypt(data: ByteArray): ByteArray {
         val decrypted = ByteArray(data.size)
         for (i in data.indices) {
             val temp = data[i].toInt() xor decryptByte()

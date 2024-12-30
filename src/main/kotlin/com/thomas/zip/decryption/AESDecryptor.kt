@@ -1,5 +1,6 @@
 package com.thomas.zip.decryption
 
+import com.thomas.zip.utility.DeflateUtil
 import com.thomas.zip.utility.extractZip
 import com.thomas.zip.utility.getByteArray
 import com.thomas.zip.utility.readFile
@@ -11,11 +12,8 @@ import javax.crypto.spec.PBEKeySpec
 import javax.crypto.spec.SecretKeySpec
 
 class AESDecryptor(private val file: String): Decryptor<AESSample>() {
-    private val samples: List<AESSample> = extractSamples()
-
-    companion object {
-        private val IV = ByteArray(16).apply { this[0] = 1 }
-    }
+    override val samples: List<AESSample> = extractSamples()
+    override val decryptedStreams: MutableList<ByteArray> = mutableListOf()
 
     private fun getMasterKeySize(strength: Int): Int = strength * 2 + 16
 
@@ -28,13 +26,24 @@ class AESDecryptor(private val file: String): Decryptor<AESSample>() {
             0x03 -> 256
             else -> 0
         }
-
-        val salt = data.substring(0, 16 * 2)
-        val passVerifyBytes = data.substring(16 * 2, 18 * 2)
-        val rawData = data.substring(18 * 2, (data.length - 10 * 2))
+        val compression = when (rawHeader[9].toInt()) {
+            Compression.STORE.value -> Compression.STORE
+            Compression.DEFLATE.value -> Compression.DEFLATE
+            else -> Compression.UNKNOWN
+        }
+        val saltSize = when (strength) {
+            128 -> 8
+            192 -> 12
+            256 -> 16
+            else -> 0
+        }
+        val salt = data.substring(0, saltSize * 2)
+        val passVerifyBytes = data.substring(saltSize * 2, (saltSize + 2) * 2)
+        val rawData = data.substring((saltSize + 2) * 2, (data.length - 10 * 2))
         val authCode = data.substring((data.length - 10 * 2))
 
-        return AESSample(version, strength, salt, passVerifyBytes, rawData, authCode)
+        return AESSample(version, strength, salt,
+            passVerifyBytes, rawData, authCode, compression = compression)
     }
 
     override fun extractSamples(): List<AESSample> {
@@ -61,6 +70,36 @@ class AESDecryptor(private val file: String): Decryptor<AESSample>() {
         return samples
     }
 
+    private fun updateIV(iv: ByteArray, nonce: Int) {
+        iv[0] = nonce.toByte()
+        iv[1] = (nonce shr 8).toByte()
+        iv[2] = (nonce shr 16).toByte()
+        iv[3] = (nonce shr 24).toByte()
+
+        for (i in 4 until iv.size) {
+            iv[i] = 0
+        }
+    }
+
+    private fun decryptData(data: ByteArray, cipher: Cipher, aesKey: SecretKeySpec): ByteArray {
+        var nonce = 1
+        val iv = ByteArray(16)
+        val blockData = data.joinToString("") {
+            byte -> "%02x".format(byte)
+        }.chunked(32)
+        val result = mutableListOf<ByteArray>()
+        for (block in blockData) {
+            val blockBytes = block.getByteArray()
+            updateIV(iv, nonce)
+            val ivSpec = IvParameterSpec(iv)
+            cipher.init(Cipher.DECRYPT_MODE, aesKey, ivSpec)
+            val decrypted = cipher.doFinal(blockBytes)
+            result.add(decrypted)
+            nonce++
+        }
+        return result.flatMap { it.asIterable() }.toByteArray()
+    }
+
     override fun checkPassword(password: String): Boolean {
         val cipher = Cipher.getInstance("AES/CTR/NoPadding")
         val keyFactory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1")
@@ -76,14 +115,28 @@ class AESDecryptor(private val file: String): Decryptor<AESSample>() {
         val masterKey = keyFactory.generateSecret(keySpec).encoded
 
         val aesKey = SecretKeySpec(masterKey.sliceArray(0..31), "AES")
-        val iv = IvParameterSpec(IV)
-        cipher.init(Cipher.DECRYPT_MODE, aesKey, iv)
 
         val hmacKey = masterKey.sliceArray(32..63)
         mac.init(SecretKeySpec(hmacKey, "HmacSHA1"))
         val calculatedMAC = mac.doFinal(data)
 
-        return calculatedMAC.sliceArray(0..9).contentEquals(dataMAC)
+        val check = calculatedMAC.sliceArray(0..9).contentEquals(dataMAC)
                 && passVerifyBytes.contentEquals(masterKey.sliceArray(64..65))
+
+        if (check) {
+            val decrypted = decryptData(data, cipher, aesKey)
+            if (sample.compression == Compression.DEFLATE){
+                try {
+                    val decompressed = DeflateUtil.decompress(decrypted)
+                    decryptedStreams.add(decompressed)
+                } catch (e: Exception) {
+                    return false
+                }
+            } else {
+                decryptedStreams.add(decrypted)
+            }
+        }
+
+        return check
     }
 }

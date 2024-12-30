@@ -7,5 +7,6 @@ data class AESSample(
     val pwdVerifyValue: String,
     val data: String,
     val authCode: String,
-    val crc: String? = null
+    val crc: String? = null,
+    val compression: Compression,
 )

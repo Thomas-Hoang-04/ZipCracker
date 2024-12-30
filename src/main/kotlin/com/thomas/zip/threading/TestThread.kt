@@ -58,7 +58,7 @@ class Producer(
     private val workerCount: Int,
     private val mask: Int
 ): Thread() {
-    private val pwdPath = System.getProperty("user.dir") + "/output/pwd_6.txt"
+    private val pwdPath = System.getProperty("user.dir") + "/output/pwd_1.txt"
     override fun run() {
         val handle: WinNT.HANDLE = Kernel32.INSTANCE.GetCurrentThread()
         val inst: Affinity = Native.load("Kernel32", Affinity::class.java) as Affinity
@@ -153,7 +153,7 @@ fun test(mask: Int, worker: Int) {
     val filename = System.getProperty("user.dir") + "/resources/hello_aes.zip"
     val decryptor = AESDecryptor(filename)
 
-    val pwdQueue: BlockingQueue<String> = LinkedBlockingQueue(1000 * worker)
+    val pwdQueue: BlockingQueue<String> = LinkedBlockingQueue(2000 * worker)
     val result: ConcurrentLinkedQueue<String> = ConcurrentLinkedQueue()
     val producer = Producer(pwdQueue, worker, 0x001)
     val tracker = Tracker(0x001)

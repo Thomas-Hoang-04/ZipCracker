@@ -10,6 +10,10 @@ fun String.getByteArray(): ByteArray = this.chunked(2).map {
 
 fun String.getPrintByte(): String = this.chunked(2).joinToString(" ")
 
+fun ByteArray.toRawString(delimiter: String = ""): String = this.joinToString(delimiter) { byte -> "%02x".format(byte) }
+
+fun Long.toHexString(): String = "%08x".format(this)
+
 fun countOccur(input: String, target: String): Int {
     val regex = Regex(target)
     return regex.findAll(input).count()

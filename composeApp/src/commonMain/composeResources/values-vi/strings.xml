@@ -1,0 +1,33 @@
+<resources>
+    <string name="app_name">ZipCracker</string>
+    <string name="select_title">Chọn tệp ZIP cần giải mã</string>
+    <string name="select_prompt">Địa chỉ tệp</string>
+    <string name="select_button">Chọn tệp</string>
+    <string name="select_method">Chọn phương pháp giải mã</string>
+    <string name="select_brute">Tổ hợp tuần tự</string>
+    <string name="select_dict">Từ điển</string>
+    <string name="select_benchmark">Đánh giá hiệu năng</string>
+    <string name="max_thread_title">Số luồng CPU sử dụng (Tối đa: %1$d)</string>
+    <string name="pwd_title">Thành phần mật khẩu</string>
+    <string-array name="pwd_combinations">
+        <item>Chữ thường (a-z)</item>
+        <item>Chữ hoa (A-Z)</item>
+        <item>Số (0-9)</item>
+        <item>Ký tự đặc biệt (!@#$%&amp;^*...)</item>
+    </string-array>
+    <string name="pwd_length">Độ dài mật khẩu tối đa</string>
+    <string name="dec">Giảm</string>
+    <string name="inc">Tăng</string>
+    <string name="closing">Đang đóng ứng dụng...</string>
+    <string name="warning_title">Giải mã đang hoạt động</string>
+    <string name="warning_message">Bạn có chắc chắn muốn đóng ứng dụng?</string>
+    <string name="minimize">Chạy trong nền</string>
+    <string name="close">Thoát</string>
+    <string name="crack_button">Giải mã</string>
+    <string name="file_error">Cần chọn một tệp ZIP</string>
+    <string name="pwd_error">Cần ít nhất một tổ hợp mật khẩu</string>
+    <string name="format_error">Định dạng tệp ZIP không hợp lệ</string>
+    <string name="encryption_error">Tệp ZIP không được mã hóa</string>
+    <string name="select_dict_file">Chọn tệp từ điển</string>
+    <string name="select_dict_prompt">Địa chỉ tệp từ điển</string>
+</resources>

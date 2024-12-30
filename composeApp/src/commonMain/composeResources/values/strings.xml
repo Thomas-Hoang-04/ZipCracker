@@ -1,0 +1,33 @@
+<resources>
+    <string name="app_name">ZipCracker</string>
+    <string name="select_title">Select ZIP file to decrypt</string>
+    <string name="select_prompt">File address</string>
+    <string name="select_button">Select file</string>
+    <string name="select_method">Select decrypting method</string>
+    <string name="select_brute">Brute-force</string>
+    <string name="select_dict">Dictionary</string>
+    <string name="select_benchmark">Benchmark</string>
+    <string name="max_thread_title">CPU threads use (Maximum: %1$d)</string>
+    <string name="pwd_title">Password combinations</string>
+    <string-array name="pwd_combinations">
+        <item>Lowercase (a-z)</item>
+        <item>Uppercase (A-Z)</item>
+        <item>Digits (0-9)</item>
+        <item>Special characters (!@#$%&amp;^*...)</item>
+    </string-array>
+    <string name="pwd_length">Maximum password length</string>
+    <string name="dec">Decrease</string>
+    <string name="inc">Increase</string>
+    <string name="closing">Closing app...</string>
+    <string name="warning_title">Decrypting in motion</string>
+    <string name="warning_message">Are you sure you want to close the app?</string>
+    <string name="minimize">Minimize the window</string>
+    <string name="close">Exit</string>
+    <string name="crack_button">Decrypt</string>
+    <string name="file_error">A %1$s file must be selected</string>
+    <string name="pwd_error">At least one password combination required</string>
+    <string name="format_error">Invalid ZIP file format</string>
+    <string name="encryption_error">ZIP file is not encrypted</string>
+    <string name="select_dict_file">Select a dictionary file</string>
+    <string name="select_dict_prompt">Dictionary file address</string>
+</resources>

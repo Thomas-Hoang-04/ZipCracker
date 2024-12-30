@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 kotlin {
@@ -15,12 +16,15 @@ kotlin {
         commonMain.dependencies {
             implementation(compose.runtime)
             implementation(compose.foundation)
-            implementation(compose.material)
             implementation(compose.ui)
+            implementation(compose.material3)
+            implementation(compose.materialIconsExtended)
             implementation(compose.components.resources)
             implementation(compose.components.uiToolingPreview)
             implementation(libs.androidx.lifecycle.viewmodel)
             implementation(libs.androidx.lifecycle.runtime.compose)
+            implementation(libs.kotlinx.serialization.json)
+            implementation(libs.gson)
         }
         desktopMain.dependencies {
             implementation(compose.desktop.currentOs)
@@ -29,6 +33,8 @@ kotlin {
             implementation(libs.java.jna)
             implementation(libs.java.jna.affinity)
             implementation(libs.zip4j)
+            implementation(libs.vinceglb.compose.filekit)
+            implementation(libs.native.params)
         }
     }
 }
@@ -36,17 +42,35 @@ kotlin {
 
 compose.desktop {
     application {
+        buildTypes.release.proguard {
+            version.set("7.6.1")
+            obfuscate.set(true)
+            optimize.set(true)
+        }
+
         mainClass = "com.thomas.zipcracker.MainKt"
 
         nativeDistributions {
             targetFormats(TargetFormat.Msi, TargetFormat.Deb, TargetFormat.Exe)
             packageName = "ZipCracker"
             packageVersion = "1.0.0"
+            description = "ZipCracker is a desktop application for cracking encrypted zip files"
+            copyright = "© 2024 Thomas. All rights reserved"
+            licenseFile.set(file("LICENSE"))
 
             windows {
-                packageVersion = "1.0.0"
-                packageName = "ZipCracker"
                 iconFile.set(file("ZipCracker.ico"))
+                dirChooser = true
+                menuGroup = "ZipCracker"
+                perUserInstall = false
+                installationPath = "C:\\Program Files\\"
+                includeAllModules = true
+            }
+
+            linux {
+                modules("jdk.security.auth")
+                debMaintainer = "minhhaihoang2312@gmail.com"
+                menuGroup = "ZipCracker"
             }
         }
     }

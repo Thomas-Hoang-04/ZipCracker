@@ -8,6 +8,10 @@ compose-desktop-preview = "1.7.3"
 jna = "5.15.0"
 affinity = "3.23.3"
 zip4j = "2.11.5"
+filekit = "0.8.8"
+native-params = "0.1.3"
+serialization = "1.7.3"
+gson = "2.11.0"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
@@ -20,8 +24,13 @@ compose-desktop-preview = { group = "org.jetbrains.compose.ui", name = "ui-tooli
 java-jna = { group = "net.java.dev.jna", name = "jna", version.ref = "jna" }
 java-jna-affinity = { group = "net.openhft", name = "affinity", version.ref = "affinity" }
 zip4j = { group = "net.lingala.zip4j", name = "zip4j", version.ref = "zip4j" }
+vinceglb-compose-filekit = { group = "io.github.vinceglb", name = "filekit-compose-jvm", version.ref = "filekit" }
+native-params = { group = "com.github.tkuenneth", name = "nativeparameterstoreaccess", version.ref = "native-params" }
+kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "serialization" }
+gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
 
 [plugins]
 composeMultiplatform = { id = "org.jetbrains.compose", version.ref = "compose-multiplatform" }
 composeCompiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }

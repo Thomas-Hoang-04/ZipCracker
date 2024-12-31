@@ -3,10 +3,6 @@
 
 # ZipCracker
 
----
-### _Disclaimer: This app is for research and testing purposes only. I will not be responsible for any illegal usage of content from this repository_
----
-
 _ZipCracker is a Compose Multiplatform Desktop app dedicated to efficiently cracking encrypted ZIP files on personal computers_
 
 ### Operation modes:

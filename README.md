@@ -4,7 +4,7 @@
 # ZipCracker
 
 ---
-### _Disclaimer: This tool is for research and testing purposes only. I will not be responsible for any illegal usage of content from this repository_
+### _Disclaimer: This app is for research and testing purposes only. I will not be responsible for any illegal usage of content from this repository_
 ---
 
 _ZipCracker is a Compose Multiplatform Desktop app dedicated to efficiently cracking encrypted ZIP files on personal computers_
@@ -34,7 +34,7 @@ _**Note on features**: maximum passwords length are being limited to 8 character
 - IDE: Android Studio (Version 2024.3.1 Meerkat) & IntelliJ IDEA Ultimate (Version 2024.2.5) 
 
 ### Special thanks to
-- Mr Nguyễn Quốc Khánh (My project instructor)
+- Mr Nguyễn Quốc Khánh (My project instructor at HUST)
 - [Mr Srikanth Reddy Lingala](https://www.linkedin.com/in/srikanth-reddy-lingala-56907714?utm_source=share&utm_campaign=share_via&utm_content=profile&utm_medium=android_app) - Author of [Zip4j library](https://github.com/srikanth-lingala/zip4j): The crypto implementation in your library inspire me to write my implementation of decryption
 - [Mr Micheal Pohoreski](https://www.linkedin.com/in/michael-pohoreski-8a74171?utm_source=share&utm_campaign=share_via&utm_content=profile&utm_medium=android_app): Your article, [CRC32 Demystified](https://github.com/Michaelangel007/crc32), provides great insights on how CRC32 actually work and methods to manually calculate CRC32 _(result used as validation in ZIP 2.0 encryption support)_
 

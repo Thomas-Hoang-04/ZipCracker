@@ -34,4 +34,4 @@ _**Note on features**: maximum passwords length are being limited to 8 character
 - [Mr Srikanth Reddy Lingala](https://www.linkedin.com/in/srikanth-reddy-lingala-56907714?utm_source=share&utm_campaign=share_via&utm_content=profile&utm_medium=android_app) - Author of [Zip4j library](https://github.com/srikanth-lingala/zip4j): The crypto implementation in your library inspire me to write my implementation of decryption
 - [Mr Micheal Pohoreski](https://www.linkedin.com/in/michael-pohoreski-8a74171?utm_source=share&utm_campaign=share_via&utm_content=profile&utm_medium=android_app): Your article, [CRC32 Demystified](https://github.com/Michaelangel007/crc32), provides great insights on how CRC32 actually work and methods to manually calculate CRC32 _(result used as validation in ZIP 2.0 encryption support)_
 
-_Created by Minh Hai Hoang. December 2024_
+_**Created by Minh Hai Hoang. December 2024**_

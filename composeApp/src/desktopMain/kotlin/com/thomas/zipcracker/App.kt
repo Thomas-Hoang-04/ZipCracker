@@ -319,15 +319,15 @@ fun App(
                         onClick = {
                             opMode.value = entry
                             if (entry != OpMode.DICTIONARY) {
-                                pwdOptions.value = 0b0101
-                                pwdLength.value = when (entry) {
-                                    OpMode.BRUTE -> 4
-                                    OpMode.BENCHMARK -> 5
-                                    else -> 4
+                                pwdOptions.value = when (entry) {
+                                    OpMode.BENCHMARK -> 0b0111
+                                    else -> 0b0101
                                 }
+                                pwdLength.value = 4
                                 pwdLengthDisplay.value = pwdLength.value.toString()
                             } else {
                                 dictionaryFile.clear()
+                                dictionaryDisplay = ""
                             }
                         },
                         colors = RadioButtonDefaults.colors(

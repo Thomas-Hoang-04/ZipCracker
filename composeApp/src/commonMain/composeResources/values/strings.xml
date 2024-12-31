@@ -24,7 +24,8 @@
     <string name="minimize">Minimize the window</string>
     <string name="close">Exit</string>
     <string name="crack_button">Decrypt</string>
-    <string name="file_error">A %1$s file must be selected</string>
+    <string name="file_error">A ZIP file must be selected</string>
+    <string name="dict_error">A dictionary file must be selected</string>
     <string name="pwd_error">At least one password combination required</string>
     <string name="format_error">Invalid ZIP file format</string>
     <string name="encryption_error">ZIP file is not encrypted</string>

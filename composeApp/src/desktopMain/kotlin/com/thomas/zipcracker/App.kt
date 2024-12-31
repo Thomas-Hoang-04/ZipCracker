@@ -22,18 +22,25 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.datastore.core.DataStore
+import androidx.datastore.core.DataStoreFactory
+import com.thomas.zipcracker.component.AppState
 import com.thomas.zipcracker.component.CrackingOptions
 import com.thomas.zipcracker.component.FileInput
 import com.thomas.zipcracker.component.ProgressTracker
 import com.thomas.zipcracker.component.RowWithIncrementer
 import com.thomas.zipcracker.component.TitleWithErrorWarning
 import com.thomas.zipcracker.processor.OpMode
+import com.thomas.zipcracker.processor.UserSettings
+import com.thomas.zipcracker.processor.UserSettingsSerializer
 import com.thomas.zipcracker.processor.Watcher
 import com.thomas.zipcracker.processor.ZIPStatus
 import com.thomas.zipcracker.threading.crack
 import com.thomas.zipcracker.utility.checkZIPDecryption
+import com.thomas.zipcracker.utility.masterPath
 import io.github.vinceglb.filekit.compose.rememberFilePickerLauncher
 import io.github.vinceglb.filekit.core.FileKitPlatformSettings
+import io.github.vinceglb.filekit.core.PickerMode
 import io.github.vinceglb.filekit.core.PickerType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -43,24 +50,24 @@ import org.jetbrains.compose.resources.stringArrayResource
 import org.jetbrains.compose.resources.stringResource
 
 import zipcracker.composeapp.generated.resources.*
+import java.awt.Window
 import java.io.File
 import java.util.concurrent.ConcurrentLinkedQueue
 
-
 @Composable
 fun App(
-    isRunning: MutableState<Boolean>,
+    parentWindow: Window?,
+    state: MutableState<AppState>,
     pool: MutableList<Thread>,
+    datastore: DataStore<UserSettings>
 ) {
     var file by remember { mutableStateOf<File?>(null) }
     val fileDisplay by derivedStateOf {
         file?.path ?: ""
     }
 
-    var dictionaryFile by remember { mutableStateOf<File?>(null) }
-    val dictionaryDisplay by derivedStateOf {
-        dictionaryFile?.path ?: ""
-    }
+    val dictionaryFile = remember { mutableListOf<File>() }
+    var dictionaryDisplay by remember { mutableStateOf("") }
 
     val pwdOptions = remember { mutableIntStateOf(0b0101) }
     val pwdOptionsLabels = stringArrayResource(Res.array.pwd_combinations)
@@ -80,8 +87,8 @@ fun App(
     val interactionSource = remember { MutableInteractionSource() }
     val scrollState = rememberScrollState()
 
-    val refFileError = stringResource(Res.string.file_error, "ZIP")
-    val refDictError = stringResource(Res.string.file_error, "dictionary")
+    val refFileError = stringResource(Res.string.file_error)
+    val refDictError = stringResource(Res.string.dict_error)
     val refPwdOptionsError = stringResource(Res.string.pwd_error)
     val formatError = stringResource(Res.string.format_error)
     val encryptionError = stringResource(Res.string.encryption_error)
@@ -89,9 +96,6 @@ fun App(
     val fileError = remember { mutableStateOf<String?>(null) }
     var pwdOptionsError by remember { mutableStateOf<String?>(null) }
     var dictError by remember { mutableStateOf<String?>(null) }
-
-    val ended = remember { mutableStateOf<Boolean?>(null) }
-    val time = remember { mutableLongStateOf(0L) }
 
     val scope = rememberCoroutineScope()
     val validated: () -> Boolean = {
@@ -110,59 +114,56 @@ fun App(
         }
         pwdOptionsError = if (pwdOptions.value == 0) { refPwdOptionsError }
             else { null }
-        dictError = if (opMode.value == OpMode.DICTIONARY && dictionaryFile == null) {
+        dictError = if (opMode.value == OpMode.DICTIONARY && dictionaryFile.isEmpty()) {
             refDictError
         } else { null }
         fileError.value == null && pwdOptionsError == null && dictError == null
     }
 
     val result = remember { ConcurrentLinkedQueue<String>() }
-    val activate: (CrackingOptions) -> Unit = { opt ->
+    val activate: suspend (CrackingOptions) -> Unit = { opt ->
         Watcher.tracker = true
         Watcher.pause = false
         Watcher.stop = false
-        scope.launch {
-            withContext(Dispatchers.Default) {
-                time.value = 0
-                ended.value = false
-                delay(100)
-                isRunning.value = true
-                crack(
-                    threadPool = pool,
-                    options = opt,
-                    result = result,
-                    error = fileError,
-                    isRunning = isRunning,
-                    ended = ended
-                )
-            }
-        }
+        delay(100)
+        state.value = AppState.RUNNING
+        result.clear()
+        crack(
+            threadPool = pool,
+            options = opt,
+            result = result,
+            error = fileError,
+            state = state,
+            datastore = datastore
+        )
     }
+
 
     val zipLauncher = rememberFilePickerLauncher(
         type = PickerType.File(listOf("zip")),
         title = stringResource(Res.string.select_title),
         platformSettings = FileKitPlatformSettings(
-            parentWindow = null
+            parentWindow = parentWindow
         )
     ) { f ->
         file = f?.file
     }
 
     val dictLauncher = rememberFilePickerLauncher(
+        mode = PickerMode.Multiple(null),
         type = PickerType.File(listOf("txt")),
         title = stringResource(Res.string.select_dict_file),
         platformSettings = FileKitPlatformSettings(
-            parentWindow = null
+            parentWindow = parentWindow
         )
-    ) { f ->
-        dictionaryFile = f?.file
+    ) { fs ->
+        fs?.forEach { dictionaryFile.add(it.file) }
+        dictionaryDisplay = dictionaryFile.joinToString("; ") { it.path }
     }
 
-    LaunchedEffect(isRunning.value) {
-        if (isRunning.value) {
-            time.value++
-            delay(1000)
+    LaunchedEffect(state.value) {
+        if (state.value == AppState.CANCELLED || state.value == AppState.COMPLETED) {
+            dictionaryDisplay = ""
         }
     }
 
@@ -196,6 +197,89 @@ fun App(
             )
         }
         Spacer(modifier = Modifier.height(10.dp))
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+        ) {
+            Button(
+                enabled = state.value != AppState.RUNNING,
+                colors = ButtonDefaults.buttonColors(
+                    contentColor = Color.White,
+                    disabledContentColor = MaterialTheme.colorScheme.contentColorFor(
+                        MaterialTheme.colorScheme.background),
+                ),
+                onClick = {
+                    scope.launch {
+                        if (validated()) {
+                            val options = CrackingOptions(
+                                file = file?.absolutePath ?: return@launch,
+                                encryption = encryption,
+                                dictFiles = dictionaryFile.map { it.absolutePath },
+                                maxAllowedThread = threadCount.value,
+                                opMode = opMode.value,
+                                maxPwdLength = if (opMode.value == OpMode.DICTIONARY) -1
+                                else pwdLength.value,
+                                pwdOptions = if (opMode.value == OpMode.DICTIONARY) -1
+                                else pwdOptions.value
+                            )
+                            dictionaryFile.clear()
+                            datastore.updateData {
+                                it.copy(
+                                    lastOptions = options,
+                                )
+                            }
+                            println(options)
+                            withContext(Dispatchers.Default) {
+                                activate(options)
+                            }
+                        }
+                    }
+                },
+                modifier = Modifier
+                    .height(52.dp)
+
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Settings,
+                        contentDescription = "Crack ZIP",
+                        modifier = Modifier.size(26.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        stringResource(Res.string.crack_button),
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Medium,
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.width(4.dp))
+            if (state.value == AppState.RUNNING) {
+                ProgressTracker(
+                    state = state,
+                    opMode = opMode.value,
+                    onStop = {
+                        scope.launch {
+                            state.value = AppState.CANCELLED
+                            delay(25)
+                            Watcher.stop = true
+                            delay(50)
+                            while (pool.any { it.isAlive }) {
+                                pool.forEach(Thread::interrupt)
+                                delay(500)
+                            }
+                            pool.clear()
+                        }
+                    }
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(32.dp))
         TitleWithErrorWarning(
             title = stringResource(Res.string.select_title),
             fontSize = 20.sp,
@@ -204,7 +288,7 @@ fun App(
         FileInput(
             filename = fileDisplay,
             launcher = zipLauncher,
-            isRunning = isRunning
+            state = state,
         ) {
             Text(stringResource(Res.string.select_prompt))
         }
@@ -230,7 +314,7 @@ fun App(
             ) {
                 OpMode.entries.forEach { entry ->
                     RadioButton(
-                        enabled = !isRunning.value,
+                        enabled = state.value != AppState.RUNNING,
                         selected = opMode.value == entry,
                         onClick = {
                             opMode.value = entry
@@ -243,7 +327,7 @@ fun App(
                                 }
                                 pwdLengthDisplay.value = pwdLength.value.toString()
                             } else {
-                                dictionaryFile = null
+                                dictionaryFile.clear()
                             }
                         },
                         colors = RadioButtonDefaults.colors(
@@ -262,7 +346,8 @@ fun App(
                             .weight(1f)
                             .clickable(
                                 indication = null,
-                                interactionSource = remember { MutableInteractionSource() }
+                                interactionSource = remember { MutableInteractionSource() },
+                                enabled = state.value != AppState.RUNNING
                             ) {
                                 opMode.value = entry
                             },
@@ -279,7 +364,8 @@ fun App(
             num = threadCount,
             displayNum = threadCountDisplay,
             threshold = maxThread,
-            isRunning = isRunning,
+            buttonEnabled = state.value != AppState.RUNNING,
+            textReadOnly = state.value == AppState.RUNNING,
             onValueChange = {
                 threadCount.value = if (threadCount.value < 1) 1
                     else if (threadCount.value > maxThread) maxThread
@@ -300,7 +386,7 @@ fun App(
             FileInput(
                 filename = dictionaryDisplay,
                 launcher = dictLauncher,
-                isRunning = isRunning
+                state = state
             ) {
                 Text(stringResource(Res.string.select_dict_prompt))
             }
@@ -338,7 +424,7 @@ fun App(
                                     )
                                 ) {
                                     Checkbox(
-                                        enabled = !isBenchmark,
+                                        enabled = !isBenchmark && (state.value != AppState.RUNNING),
                                         checked = (pwdOptions.value and (1 shl (index * 2 + idx))) != 0,
                                         onCheckedChange = {
                                             pwdOptions.value = if (it) {
@@ -376,7 +462,8 @@ fun App(
                 num = pwdLength,
                 displayNum = pwdLengthDisplay,
                 threshold = 8,
-                isRunning = isRunning,
+                buttonEnabled = (state.value != AppState.RUNNING) && !isBenchmark,
+                textReadOnly = (state.value == AppState.RUNNING || isBenchmark),
                 onValueChange = {
                     pwdLength.value = if (pwdLength.value < 1) 1
                     else if (pwdLength.value > 8) 8
@@ -390,74 +477,6 @@ fun App(
             )
         }
         Spacer(modifier = Modifier.height(32.dp))
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp)
-        ) {
-            Button(
-                onClick = {
-                    if (validated()) {
-                        val options = CrackingOptions(
-                            file = file ?: return@Button,
-                            encryption = encryption,
-                            dictFile = dictionaryFile,
-                            maxAllowedThread = threadCount.value,
-                            opMode = opMode.value,
-                            maxPwdLength = if (opMode.value == OpMode.DICTIONARY) -1
-                                else pwdLength.value,
-                            pwdOptions = if (opMode.value == OpMode.DICTIONARY) -1
-                                else pwdOptions.value
-                        )
-                        println(options)
-                        activate(options)
-                    }
-                },
-                modifier = Modifier
-                    .height(52.dp)
-
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Settings,
-                        contentDescription = "Crack ZIP",
-                        tint = Color.White,
-                        modifier = Modifier.size(26.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        stringResource(Res.string.crack_button),
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = Color.White,
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.width(4.dp))
-            if (isRunning.value) {
-                ProgressTracker(
-                    isRunning = isRunning,
-                    opMode = opMode.value,
-                    time = time,
-                    onStop = {
-                        scope.launch {
-                            Watcher.stop = true
-                            delay(50)
-                            while (pool.any { it.isAlive }) {
-                                pool.forEach(Thread::interrupt)
-                                delay(500)
-                            }
-                            pool.clear()
-                            isRunning.value = false
-                        }
-                    }
-                )
-            }
-        }
     }
 }
 
@@ -465,7 +484,12 @@ fun App(
 @Composable
 fun AppPreview() {
     App(
-        isRunning = mutableStateOf(true),
-        mutableListOf()
+        null,
+        state = mutableStateOf(AppState.NOT_INITIATED),
+        mutableListOf(),
+        DataStoreFactory.create(
+            serializer = UserSettingsSerializer(),
+            produceFile = { File("$masterPath/preferences.json") }
+        )
     )
 }

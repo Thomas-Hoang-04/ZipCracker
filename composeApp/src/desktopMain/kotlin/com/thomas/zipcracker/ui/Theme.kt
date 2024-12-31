@@ -12,6 +12,12 @@ import com.github.tkuenneth.nativeparameterstoreaccess.NativeParameterStoreAcces
 import com.github.tkuenneth.nativeparameterstoreaccess.NativeParameterStoreAccess.IS_WINDOWS
 import com.github.tkuenneth.nativeparameterstoreaccess.WindowsRegistry
 
+enum class Theme {
+    LIGHT,
+    DARK,
+    SYSTEM,
+}
+
 private val DarkColorScheme: ColorScheme = darkColorScheme(
     primary = DarkPrimaryColor,
     secondary = IndicatorColor,
@@ -20,14 +26,14 @@ private val DarkColorScheme: ColorScheme = darkColorScheme(
     surface = DialogColor,
     onSecondary = Color.LightGray,
     onSecondaryContainer = Color.Gray,
-    error = ErrorColor
+    error = ErrorColor,
 )
 
 private val LightColorScheme: ColorScheme = darkColorScheme(
     primary = LightPrimaryColor,
     secondary = IndicatorColor,
     background = Color.White,
-    onBackground = Color.Black,
+    onBackground = Color.DarkGray,
     surface = Color.White,
     onSecondaryContainer = Color.Gray,
     onSecondary = Color.DarkGray,

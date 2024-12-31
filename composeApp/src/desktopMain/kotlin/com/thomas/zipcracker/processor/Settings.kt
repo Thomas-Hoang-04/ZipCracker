@@ -3,7 +3,6 @@ package com.thomas.zipcracker.processor
 import androidx.datastore.core.Serializer
 import com.thomas.zipcracker.component.CrackingOptions
 import com.thomas.zipcracker.ui.Theme
-import com.thomas.zipcracker.ui.isDarkThemeActive
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.InputStream

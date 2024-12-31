@@ -1,7 +1,6 @@
 package com.thomas.zipcracker.component
 
 import androidx.compose.runtime.Composable
-import androidx.compose.desktop.ui.tooling.preview.Preview
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -15,24 +14,13 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.WarningAmber
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Text
-import androidx.compose.material3.contentColorFor
+import androidx.compose.material3.*
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableIntState
-import androidx.compose.runtime.MutableLongState
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -271,9 +259,10 @@ fun RowWithIncrementer(
     num: MutableIntState,
     displayNum: MutableState<String>,
     threshold: Int,
-    isRunning: MutableState<Boolean>,
     onValueChange: () -> Unit,
     onFocusChanged: () -> Unit,
+    buttonEnabled: Boolean,
+    textReadOnly: Boolean,
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -295,7 +284,7 @@ fun RowWithIncrementer(
                 .padding(horizontal = 16.dp)
         ) {
             IconButton(
-                enabled = !isRunning.value,
+                enabled = buttonEnabled,
                 onClick = {
                     if (num.value > 1) {
                         num.value--
@@ -312,7 +301,7 @@ fun RowWithIncrementer(
                 )
             }
             OutlinedTextField(
-                readOnly = isRunning.value,
+                readOnly = textReadOnly,
                 value = TextFieldValue(
                     text = displayNum.value,
                     selection = TextRange(displayNum.value.length)
@@ -345,7 +334,7 @@ fun RowWithIncrementer(
                     }
             )
             IconButton(
-                enabled = !isRunning.value,
+                enabled = buttonEnabled,
                 onClick = {
                     if (num.value < threshold) {
                         num.value++
@@ -369,7 +358,7 @@ fun RowWithIncrementer(
 fun FileInput(
     filename: String,
     launcher: PickerResultLauncher,
-    isRunning: MutableState<Boolean>,
+    state: MutableState<AppState>,
     label: @Composable () -> Unit,
 ) {
     Row(
@@ -400,15 +389,20 @@ fun FileInput(
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
-                    enabled = !isRunning.value
+                    enabled = state.value != AppState.RUNNING
                 ) {
                     launcher.launch()
                 },
-            singleLine = true,
+            singleLine = true
         )
         Spacer(modifier = Modifier.width(28.dp))
         Button(
-            enabled = !isRunning.value,
+            enabled = state.value != AppState.RUNNING,
+            colors = ButtonDefaults.buttonColors(
+                contentColor = Color.White,
+                disabledContentColor = MaterialTheme.colorScheme.contentColorFor(
+                    MaterialTheme.colorScheme.background),
+            ),
             onClick = { launcher.launch() },
             modifier = Modifier
                 .weight(0.2f)
@@ -416,33 +410,22 @@ fun FileInput(
             Text(
                 stringResource(Res.string.select_button),
                 fontSize = 15.sp,
-                color = Color.White,
             )
         }
     }
 }
 
 @Composable
-@Preview
-fun ProgressPreview() {
-    ProgressTracker(
-        isRunning = mutableStateOf(true),
-        opMode = OpMode.DICTIONARY,
-        time = mutableLongStateOf(0)
-    )
-}
-
-@Composable
 fun ProgressTracker(
-    isRunning: MutableState<Boolean>,
+    state: MutableState<AppState>,
     opMode: OpMode,
     onStop: () -> Unit = {},
-    time: MutableLongState,
 ) {
     var paused by remember { mutableStateOf(Watcher.pause) }
     var progress by remember { mutableFloatStateOf(0f) }
     var progressDict by remember { mutableStateOf("0/0") }
-    var speed by remember { mutableIntStateOf(0) }
+    var time by remember { mutableLongStateOf(0L) }
+    var speed by remember { mutableLongStateOf(0L) }
     val displayProgress by derivedStateOf {
         if (progress > 1f) "100"
         else "%.2f".format(progress * 100)
@@ -451,9 +434,9 @@ fun ProgressTracker(
         formatNumber(speed.toDouble())
     }
 
-    LaunchedEffect(isRunning.value) {
+    LaunchedEffect(state.value) {
         delay(250)
-        while (isRunning.value) {
+        while (state.value == AppState.RUNNING) {
             paused = Watcher.pause
             if (!paused) {
                 if (opMode == OpMode.DICTIONARY) {
@@ -465,7 +448,7 @@ fun ProgressTracker(
                     } else { 0f }
                 }
                 speed = Watcher.speed
-                time.value++
+                time = Watcher.timer
             }
             delay(1000)
         }
@@ -483,7 +466,7 @@ fun ProgressTracker(
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Text(
-                "Elapsed time: ${time.value.seconds}",
+                "Elapsed time: ${time.seconds}",
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.contentColorFor(MaterialTheme.colorScheme.background),
             )

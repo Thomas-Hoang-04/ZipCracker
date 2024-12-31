@@ -25,6 +25,7 @@
     <string name="close">Thoát</string>
     <string name="crack_button">Giải mã</string>
     <string name="file_error">Cần chọn một tệp ZIP</string>
+    <string name="dict_error">Cần chọn một tệp từ điển</string>
     <string name="pwd_error">Cần ít nhất một tổ hợp mật khẩu</string>
     <string name="format_error">Định dạng tệp ZIP không hợp lệ</string>
     <string name="encryption_error">Tệp ZIP không được mã hóa</string>

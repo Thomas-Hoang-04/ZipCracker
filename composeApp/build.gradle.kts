@@ -25,6 +25,8 @@ kotlin {
             implementation(libs.androidx.lifecycle.runtime.compose)
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.gson)
+            implementation(libs.datastore)
+            implementation(libs.datastore.preferences)
         }
         desktopMain.dependencies {
             implementation(compose.desktop.currentOs)

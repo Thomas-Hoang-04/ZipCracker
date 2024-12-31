@@ -2,11 +2,12 @@ package com.thomas.zipcracker.component
 
 import com.thomas.zipcracker.processor.OpMode
 import com.thomas.zipcracker.processor.ZIPStatus
-import java.io.File
+import kotlinx.serialization.Serializable
 
+@Serializable
 data class CrackingOptions(
-    val file: File,
-    val dictFile: File? = null,
+    val file: String,
+    val dictFiles: List<String> = emptyList(),
     val encryption: ZIPStatus,
     val maxThread: Int = Runtime.getRuntime().availableProcessors(),
     val maxAllowedThread: Int,

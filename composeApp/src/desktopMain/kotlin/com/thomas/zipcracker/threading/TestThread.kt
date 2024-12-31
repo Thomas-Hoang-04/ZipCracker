@@ -1,17 +1,26 @@
 package com.thomas.zipcracker.threading
 
 import androidx.compose.runtime.MutableState
+import androidx.datastore.core.DataStore
 import com.sun.jna.Native
 import com.sun.jna.platform.win32.Kernel32
 import com.sun.jna.platform.win32.WinNT
+import com.thomas.zipcracker.component.AppState
 import com.thomas.zipcracker.component.CrackingOptions
 import com.thomas.zipcracker.processor.AESDecryptor
 import com.thomas.zipcracker.processor.Decryptor
+import com.thomas.zipcracker.processor.LastPwdMetadata
 import com.thomas.zipcracker.processor.OpMode
+import com.thomas.zipcracker.processor.UserSettings
 import com.thomas.zipcracker.processor.Watcher
 import com.thomas.zipcracker.processor.ZIPStatus
 import com.thomas.zipcracker.processor.ZipCryptoDecryptor
-import com.thomas.zipcracker.utility.masterPath
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import org.jetbrains.compose.resources.getString
+import zipcracker.composeapp.generated.resources.Res
+import zipcracker.composeapp.generated.resources.dict_error
 import java.io.File
 import java.util.concurrent.BlockingQueue
 import java.util.concurrent.LinkedBlockingQueue
@@ -19,6 +28,7 @@ import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import kotlin.math.pow
+import kotlin.time.Duration.Companion.seconds
 
 fun findOperationCPUIndex(mask: Int): List<Int> {
     val res = mutableListOf<Int>()
@@ -46,27 +56,52 @@ class DictProducer(
     private val queue: BlockingQueue<String>,
     private val workerCount: Int,
     private val mask: Int,
-    private val pwdPath: String
+    private val pwdPath: List<String>,
+    private val lastPwdInfo: LastPwdMetadata? = null
 ): Thread() {
     override fun run() {
         val handle: WinNT.HANDLE = Kernel32.INSTANCE.GetCurrentThread()
         val inst: Affinity = Native.load("Kernel32", Affinity::class.java) as Affinity
         inst.SetThreadAffinityMask(handle, mask)
-        val reader = File(pwdPath).bufferedReader()
-        outer@ for (line in reader.lineSequence()) {
-            if (Watcher.stop) break@outer
-            while (Watcher.pause) {
-                if (Watcher.stop) break@outer
-                sleep(250)
+        try {
+            var startIdx = 0
+            var lineIdxStart = 0L
+            if (lastPwdInfo != null) {
+                startIdx = lastPwdInfo.fileIndex ?: 0
+                lineIdxStart = lastPwdInfo.lineIndex ?: 0L
+                synchronized(Watcher.Lock) {
+                    Watcher.fileIndex = startIdx
+                }
             }
-            while (!queue.offer(line, 5, TimeUnit.MILLISECONDS)) {
-                continue@outer
+            outer@ for (idx in startIdx until pwdPath.size) {
+                val reader = File(pwdPath[idx]).bufferedReader()
+                var currLineIdx = 0L
+                Watcher.fileIndex = idx
+                inner@ for (line in reader.lineSequence()) {
+                    if (Watcher.stop) break@outer
+                    while (Watcher.pause) {
+                        if (Watcher.stop) break@outer
+                        sleep(250)
+                    }
+                    if (idx == startIdx && currLineIdx < lineIdxStart) {
+                        currLineIdx++
+                        continue@inner
+                    }
+                    synchronized(Watcher.Lock) {
+                        Watcher.lineIndex = currLineIdx
+                        Watcher.pwdEntered++
+                    }
+                    currLineIdx++
+                    while (!queue.offer(line, 5, TimeUnit.MILLISECONDS)) {
+                        sleep(5)
+                        continue
+                    }
+                }
+                reader.close()
             }
-            Watcher.pwdEntered++
-        }
-        reader.close()
-        if (Watcher.stop) return
-        repeat(workerCount) { queue.put("@finish") }
+            if (Watcher.stop) return
+            repeat(workerCount) { queue.put("@finish") }
+        } catch (e: InterruptedException) { e.toString() }
     }
 }
 
@@ -76,6 +111,7 @@ class BruteProducer(
     private val mask: Int,
     private val maxSize: Int,
     private val pwdOptions: Int,
+    private val lastPwd: String? = null
 ): Thread() {
     private val chars: List<Char> = run {
         val chars = mutableListOf<Char>()
@@ -83,7 +119,7 @@ class BruteProducer(
         if (pwdOptions and 0x02 != 0) chars.addAll(('A'..'Z'))
         if (pwdOptions and 0x04 != 0) chars.addAll(('0'..'9'))
         if (pwdOptions and 0x08 != 0) chars.addAll("!@#$%^&*()_+-=[]{}|;:,.<>?".toList())
-        Watcher.maxPassword = chars.size.toDouble().pow(maxSize.toDouble()).toInt()
+        Watcher.maxPassword = chars.size.toDouble().pow(maxSize.toDouble()).toLong()
         chars
     }
     private fun backtrack(current: StringBuilder, length: Int) {
@@ -97,7 +133,7 @@ class BruteProducer(
         }
         track@ for (char in chars) {
             while (Watcher.pause) {
-                if (Watcher.stop) break
+                if (Watcher.stop) break@track
                 sleep(250)
             }
             current.append(char)
@@ -110,13 +146,19 @@ class BruteProducer(
         val inst: Affinity = Native.load("Kernel32", Affinity::class.java) as Affinity
         inst.SetThreadAffinityMask(handle, mask)
         try {
-            outer@ for (length in 1..maxSize) {
+            var startLength = 1
+            var startString = ""
+            if (lastPwd != null) {
+                startLength = lastPwd.length
+                startString = lastPwd.dropLast(1)
+            }
+            outer@ for (length in startLength..maxSize) {
                 if (Watcher.stop) break@outer
                 while (Watcher.pause) {
                     if (Watcher.stop) break@outer
                     sleep(250)
                 }
-                backtrack(StringBuilder(), length)
+                backtrack(StringBuilder(startString), length)
             }
             if (Watcher.stop) return
             repeat(workerCount) { queue.put("@finish") }
@@ -145,10 +187,12 @@ class Consumer<T>(
                     continue@outer
                 }
                 if (pwd == "@finish") break@outer
+                synchronized(Watcher.Lock) {
+                    Watcher.lastPwd = pwd
+                    Watcher.pwdConsumed++
+                }
                 val res = decryptor.checkPassword(pwd)
                 if (res) resultQueue.add(pwd)
-                Watcher.lastPwd = pwd
-                Watcher.pwdConsumed++
                 if (pseudoWorker) sleep(10)
             }
         } catch (e: InterruptedException) { e.toString() }
@@ -157,31 +201,46 @@ class Consumer<T>(
 }
 
 class Tracker(
-    private val mask: Int
+    private val mask: Int,
+    private val dataStore: DataStore<UserSettings>,
 ): Thread() {
-    private val outputFile = "$masterPath/resources/output/last_pwd.txt"
     override fun run() {
         val handle: WinNT.HANDLE = Kernel32.INSTANCE.GetCurrentThread()
         val inst: Affinity = Native.load("Kernel32", Affinity::class.java) as Affinity
         inst.SetThreadAffinityMask(handle, mask)
-        val outputDest = File(outputFile)
-        var lastPwdCount = 0
+        val scope = CoroutineScope(Dispatchers.IO)
+        var lastPwdCount = 0L
         var lastConsumed: String? = null
+        Watcher.timer = 0L
+        Watcher.speedRecord.clear()
         try {
             while (Watcher.tracker && !Watcher.stop) {
                 if (Watcher.pause) { sleep(250); continue }
                 if (Watcher.lastPwd == lastConsumed) continue
                 lastConsumed = Watcher.lastPwd
-                outputDest.writeText(lastConsumed ?: "none")
+                scope.launch {
+                    dataStore.updateData {
+                        it.copy(
+                            lastPwdInfo = it.lastPwdInfo?.copy(
+                                lastPwd = lastConsumed,
+                                fileIndex = Watcher.fileIndex,
+                                lineIndex = Watcher.lineIndex
+                            ) ?: LastPwdMetadata(
+                                lastPwd = lastConsumed,
+                                fileIndex = Watcher.fileIndex,
+                                lineIndex = Watcher.lineIndex
+                            )
+                        )
+                    }
+                }
                 val speed = Watcher.pwdConsumed - lastPwdCount
                 Watcher.speed = speed
+                Watcher.speedRecord.add(speed)
                 lastPwdCount = Watcher.pwdConsumed
+                Watcher.timer++
                 sleep(1000)
             }
         } catch (e: InterruptedException) { e.toString() }
-        finally {
-            outputDest.delete()
-        }
     }
 }
 
@@ -190,14 +249,15 @@ fun crack(
     options: CrackingOptions,
     result: ConcurrentLinkedQueue<String>,
     error: MutableState<String?>,
-    isRunning: MutableState<Boolean>,
-    ended: MutableState<Boolean?>
+    state: MutableState<AppState>,
+    datastore: DataStore<UserSettings>,
 ) {
+    val scope = CoroutineScope(Dispatchers.IO)
     val mask = options.threadMask
     val worker = mask.countOneBits()
     val decryptor: Decryptor<*> = when (options.encryption) {
-        ZIPStatus.AES_ENCRYPTION -> AESDecryptor(options.file.absolutePath)
-        ZIPStatus.STANDARD_ENCRYPTION-> ZipCryptoDecryptor(options.file.absolutePath)
+        ZIPStatus.AES_ENCRYPTION -> AESDecryptor(options.file)
+        ZIPStatus.STANDARD_ENCRYPTION-> ZipCryptoDecryptor(options.file)
         else -> {
             error.value = "Unknown encryption type"
             return
@@ -216,15 +276,22 @@ fun crack(
     threadDistribution(mask, worker, distribution)
     val latch = CountDownLatch(worker)
 
+    if (options.dictFiles.isEmpty() && options.opMode == OpMode.DICTIONARY) {
+        scope.launch {
+            error.value = getString(Res.string.dict_error)
+        }
+        state.value = AppState.CANCELLED
+        return
+    }
+
     val pwdQueue: BlockingQueue<String> = LinkedBlockingQueue(2000 * worker)
     when (options.opMode) {
-        OpMode.DICTIONARY -> DictProducer(pwdQueue, worker, 0x001,
-            (options.dictFile ?: run {
-                error.value = "Dictionary file not found"
-                isRunning.value = false
-                ended.value = null
-            return
-            }).absolutePath)
+        OpMode.DICTIONARY -> DictProducer(
+                queue = pwdQueue,
+                workerCount = worker,
+                mask = mask,
+                pwdPath = options.dictFiles
+        )
         else -> BruteProducer(
             queue = pwdQueue,
             workerCount = worker,
@@ -233,7 +300,7 @@ fun crack(
             pwdOptions = options.pwdOptions
         )
     }.also { threadPool.add(it) }
-    threadPool.add(Tracker(0x001))
+    threadPool.add(Tracker(0x001, datastore))
 
     repeat(worker) {
         val assigned = distribution.removeFirst()
@@ -263,10 +330,17 @@ fun crack(
     }
     if (Watcher.stop) { Watcher.tracker = false }
     threadPool.forEach(Thread::join)
-    isRunning.value = false
-    ended.value = true
+    state.value = if (state.value == AppState.CANCELLED) state.value else AppState.COMPLETED
+    scope.launch {
+        datastore.updateData { UserSettings(uiMode = it.uiMode) }
+    }
     threadPool.clear()
 
-    println("Password found: ${result.poll()}")
+    println("Time elapsed: ${Watcher.timer.seconds}")
+    println("Password found: ${result.toHashSet().joinToString()}")
+    println("Password consumed: ${Watcher.pwdConsumed}")
+    println("Password entered: ${Watcher.pwdEntered}")
+    println("Average speed: ${Watcher.pwdEntered / Watcher.timer}")
+    println("Max speed: ${Watcher.speedRecord.maxOrNull()}")
 }
 

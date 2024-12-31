@@ -3,167 +3,229 @@ package com.thomas.zipcracker
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.InternalComposeUiApi
+import androidx.compose.ui.LocalSystemTheme
+import androidx.compose.ui.SystemTheme
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.MenuBar
 import androidx.compose.ui.window.Tray
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
+import androidx.datastore.core.DataStoreFactory
+import com.thomas.zipcracker.component.AppState
 import com.thomas.zipcracker.component.CloseDialog
 import com.thomas.zipcracker.component.ConfirmDialog
+import com.thomas.zipcracker.processor.UserSettingsSerializer
 import com.thomas.zipcracker.processor.Watcher
+import com.thomas.zipcracker.ui.Theme
 import com.thomas.zipcracker.ui.ZipCrackerTheme
 import com.thomas.zipcracker.ui.isDarkThemeActive
+import com.thomas.zipcracker.utility.masterPath
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
 import zipcracker.composeapp.generated.resources.Res
 import zipcracker.composeapp.generated.resources.zipcracker
-import java.util.Locale
+import java.io.File
 import kotlin.time.Duration.Companion.seconds
 
-fun main(): Unit = application {
-    val scope = rememberCoroutineScope()
-    val pool = remember { mutableListOf<Thread>() }
-    var showExitDialog by remember { mutableStateOf(false) }
-    var showConfirmDialog by remember { mutableStateOf(false) }
-    var isDark by remember { mutableStateOf(isDarkThemeActive()) }
-    val isVisible = remember { mutableStateOf(true) }
-    val isRunning = remember { mutableStateOf(false) }
-    var elapsedTime by remember { mutableStateOf(0L) }
-    var prompt by remember { mutableStateOf("Pause") }
-    val openPrompt by derivedStateOf { if (isVisible.value) "Minimize" else "Show" }
-    var pwdConsumed by remember { mutableStateOf(0) }
-    val windowState = rememberWindowState(
-        width = 800.dp,
-        height = 800.dp,
-        position = WindowPosition.Aligned(Alignment.Center),
-        placement = WindowPlacement.Floating
+@OptIn(InternalComposeUiApi::class)
+fun main() {
+    val datastore = DataStoreFactory.create(
+        serializer = UserSettingsSerializer(),
+        produceFile = { File("$masterPath/resources/preferences.json") }
     )
+    application {
+        val scope = rememberCoroutineScope()
+        val pool = remember { mutableListOf<Thread>() }
+        var showExitDialog by remember { mutableStateOf(false) }
+        var showConfirmDialog by remember { mutableStateOf(false) }
+        var uiMode by remember { mutableStateOf(Theme.SYSTEM) }
+        val initialDark = LocalSystemTheme.current == SystemTheme.Dark
+        var isDark by remember { mutableStateOf(initialDark) }
+        val isVisible = remember { mutableStateOf(true) }
+        val state = remember { mutableStateOf(AppState.NOT_INITIATED) }
+        var elapsedTime by remember { mutableLongStateOf(0L) }
+        var prompt by remember { mutableStateOf("Pause") }
+        val openPrompt by derivedStateOf { if (isVisible.value) "Minimize" else "Show" }
+        var pwdConsumed by remember { mutableLongStateOf(0) }
+        val windowState = rememberWindowState(
+            width = 800.dp,
+            height = 800.dp,
+            position = WindowPosition.Aligned(Alignment.Center),
+            placement = WindowPlacement.Floating
+        )
 
-    Locale.setDefault(Locale.of("vi"))
-
-    val handleExit: suspend () -> Unit = {
-        if (!Watcher.stop) {
-            Watcher.stop = true
-            while (pool.any { it.isAlive }) {
-                pool.forEach(Thread::interrupt)
-                delay(250)
+        val handleExit: suspend () -> Unit = {
+            if (!Watcher.stop) {
+                Watcher.stop = true
+                while (pool.any { it.isAlive }) {
+                    pool.forEach(Thread::interrupt)
+                    delay(250)
+                }
+                pool.clear()
+                if (scope.isActive) scope.cancel()
             }
-            pool.clear()
-            if (scope.isActive) scope.cancel()
+            exitApplication()
         }
-        exitApplication()
-    }
 
-    LaunchedEffect(isRunning.value) {
-        delay(250)
-        while (isRunning.value) {
-            pwdConsumed = Watcher.pwdConsumed
-            elapsedTime++
+        LaunchedEffect(state.value) {
+            delay(250)
+            println("State: ${state.value}")
             delay(1000)
+            while (state.value == AppState.RUNNING) {
+                pwdConsumed = Watcher.pwdConsumed
+                elapsedTime = Watcher.timer
+                delay(1000)
+            }
         }
-    }
 
-    Tray(
-        icon = painterResource(Res.drawable.zipcracker),
-        tooltip = if (isRunning.value) "Cracking in progress"
+        Tray(
+            icon = painterResource(Res.drawable.zipcracker),
+            tooltip = if (state.value == AppState.RUNNING) "Cracking in progress"
             else if (isVisible.value) "ZipCracker" else "ZipCracker (Minimized)",
-        onAction = { isVisible.value = true },
-        menu = {
-            if (isRunning.value) {
-                Item("$pwdConsumed passwords consumed") {}
-                Item("Elapsed time: ${elapsedTime.seconds}") {}
-                Separator()
-                Item(prompt) {
-                    Watcher.pause = !Watcher.pause
-                    prompt = if (Watcher.pause) "Resume" else "Pause"
-                }
-                Item("Stop") {
-                    scope.launch {
-                        Watcher.stop = true
-                        Watcher.pause = false
-                        while (pool.any { it.isAlive }) {
-                            delay(500)
-                        }
-                        pool.clear()
-                        isRunning.value = false
+            onAction = { isVisible.value = true },
+            menu = {
+                if (state.value == AppState.RUNNING) {
+                    Item("$pwdConsumed passwords consumed") {}
+                    Item("Elapsed time: ${elapsedTime.seconds}") {}
+                    Separator()
+                    Item(prompt) {
+                        Watcher.pause = !Watcher.pause
+                        prompt = if (Watcher.pause) "Resume" else "Pause"
                     }
-                }
-                Separator()
-            }
-            Item(openPrompt) { isVisible.value = !isVisible.value }
-            Item("Exit") {
-                scope.launch {
-                    if (isRunning.value) {
-                        isVisible.value = true
-                        delay(500)
-                        showConfirmDialog = true
-                    }
-                    else handleExit()
-                }
-            }
-        }
-    )
-    LaunchedEffect(Unit) {
-        while (isActive) {
-            if (isDarkThemeActive() != isDark) {
-                isDark = isDarkThemeActive()
-            }
-            delay(1000)
-        }
-    }
-
-    ZipCrackerTheme(darkTheme = isDark) {
-        Window(
-            state = windowState,
-            onCloseRequest = {
-                scope.launch {
-                    if (isRunning.value) {
-                        showConfirmDialog = true
-                        delay(500)
-                    } else {
-                        showExitDialog = true
-                        delay(1500)
-                        handleExit()
-                    }
-                }
-            },
-            visible = isVisible.value,
-            title = "ZipCracker",
-            resizable = false,
-            icon = painterResource(Res.drawable.zipcracker)
-        ) {
-            if (showExitDialog) {
-                CloseDialog()
-            }
-
-            if (showConfirmDialog) {
-                ConfirmDialog(
-                    onMinimize = {
-                        isVisible.value = false
-                        showConfirmDialog = false
-                    },
-                    onExit = {
+                    Item("Stop") {
                         scope.launch {
-                            showConfirmDialog = false
+                            state.value = AppState.CANCELLED
+                            delay(25)
+                            Watcher.stop = true
+                            Watcher.pause = false
+                            while (pool.any { it.isAlive }) {
+                                delay(500)
+                            }
+                            pool.clear()
+                        }
+                    }
+                    Separator()
+                }
+                Item(openPrompt) { isVisible.value = !isVisible.value }
+                Item("Exit") {
+                    scope.launch {
+                        if (state.value == AppState.RUNNING) {
+                            isVisible.value = true
+                            delay(500)
+                            showConfirmDialog = true
+                        }
+                        else handleExit()
+                    }
+                }
+            }
+        )
+
+        LaunchedEffect(Unit) {
+            val theme =  datastore.data.first().uiMode
+            uiMode = theme ?: uiMode
+            isDark = (uiMode == Theme.DARK) || (uiMode == Theme.SYSTEM && isDarkThemeActive())
+            datastore.updateData { it.copy(uiMode = uiMode) }
+            while (isActive) {
+                if (uiMode == Theme.SYSTEM && isDark != isDarkThemeActive()) {
+                    isDark = isDarkThemeActive()
+                }
+                delay(1000)
+            }
+        }
+
+        ZipCrackerTheme(darkTheme = isDark) {
+            Window(
+                state = windowState,
+                onCloseRequest = {
+                    scope.launch {
+                        if (state.value == AppState.RUNNING) {
+                            showConfirmDialog = true
+                            delay(500)
+                        } else {
                             showExitDialog = true
                             delay(1000)
                             handleExit()
                         }
                     }
-                )
-            }
+                },
+                visible = isVisible.value,
+                title = "ZipCracker",
+                resizable = false,
+                icon = painterResource(Res.drawable.zipcracker)
+            ) {
+                if (showExitDialog) {
+                    CloseDialog()
+                }
 
-            App(isRunning, pool)
+                if (showConfirmDialog) {
+                    ConfirmDialog(
+                        onMinimize = {
+                            isVisible.value = false
+                            showConfirmDialog = false
+                        },
+                        onExit = {
+                            scope.launch {
+                                showConfirmDialog = false
+                                showExitDialog = true
+                                delay(1000)
+                                handleExit()
+                            }
+                        }
+                    )
+                }
+
+                MenuBar {
+                    Menu("Themes") {
+                        CheckboxItem(
+                            "Dark",
+                            uiMode == Theme.DARK,
+                        ) {
+                            isDark = true
+                            uiMode = Theme.DARK
+                            scope.launch {
+                                datastore.updateData { it.copy(uiMode = Theme.DARK) }
+                            }
+                        }
+                        CheckboxItem(
+                            "Light",
+                            uiMode == Theme.LIGHT,
+                        ) {
+                            isDark = false
+                            uiMode = Theme.LIGHT
+                            scope.launch {
+                                datastore.updateData { it.copy(uiMode = Theme.LIGHT) }
+                            }
+                        }
+                        CheckboxItem(
+                            "System",
+                            uiMode == Theme.SYSTEM,
+                        ) {
+                            uiMode = Theme.SYSTEM
+                            isDark = isDarkThemeActive()
+                            scope.launch {
+                                datastore.updateData { it.copy(uiMode = Theme.SYSTEM) }
+                            }
+                        }
+                    }
+                }
+
+                App(this.window, state, pool, datastore)
+            }
         }
     }
 }

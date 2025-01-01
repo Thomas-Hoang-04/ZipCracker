@@ -13,7 +13,7 @@ _ZipCracker is a Compose Multiplatform Desktop app dedicated to efficiently crac
 - Support multithreaded decryption
 - Support for ZIP file with WinZip AES encryption and ZIP 2.0 standard encryption _(single-password encryption only)_
 - Adaptive theme (Light/Dark/System)
-- Session recovery (in Beta)
+- Session recovery
 - Support for Windows _(Linux support in progress)_
 
 _**Note on features**: maximum passwords length are being limited to 8 characters due to consideration for feasibility - this is for personal use, after all_

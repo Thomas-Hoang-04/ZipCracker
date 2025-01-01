@@ -5,7 +5,6 @@ import com.sun.jna.platform.win32.Kernel32
 import com.sun.jna.platform.win32.WinNT
 import com.thomas.zip.decryption.AESDecryptor
 import com.thomas.zip.decryption.Decryptor
-import com.thomas.zip.decryption.ZipCryptoDecryptor
 import java.io.File
 import java.io.FileOutputStream
 import java.time.LocalDate
@@ -29,6 +28,8 @@ var lastPwd: String? = null
 
 @Volatile
 var trackerRunning: Boolean = true
+
+object Lock
 
 fun findOperationCPUIndex(mask: Int): List<Int> {
     val res = mutableListOf<Int>()
@@ -58,7 +59,7 @@ class Producer(
     private val workerCount: Int,
     private val mask: Int
 ): Thread() {
-    private val pwdPath = System.getProperty("user.dir") + "/output/pwd_1.txt"
+    private val pwdPath = System.getProperty("user.dir") + "/output/pwd_6.txt"
     override fun run() {
         val handle: WinNT.HANDLE = Kernel32.INSTANCE.GetCurrentThread()
         val inst: Affinity = Native.load("Kernel32", Affinity::class.java) as Affinity
@@ -95,8 +96,10 @@ class Consumer<T>(
                 break
             }
             if (decryptor.checkPassword(pwd)) resultQueue.add(pwd)
-            lastPwd = pwd
-            pwdConsumed++
+            synchronized(Lock) {
+                lastPwd = pwd
+                pwdConsumed++
+            }
             if (pseudoWorker) sleep(1)
         }
         println("Thread $mask stopped")

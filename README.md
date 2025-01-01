@@ -16,7 +16,7 @@ _ZipCracker is a Compose Multiplatform Desktop app dedicated to efficiently crac
 - Session recovery
 - Support for Windows _(Linux support in progress)_
 
-_**Note on features**: maximum passwords length are being limited to 8 characters due to consideration for feasibility - this is for personal use, after all_
+_**Note on features**: maximum passwords length are being limited to 8 characters due to consideration for practicality - this is for personal use, after all_
 
 ### Repository content
 - `main`: Contain the original backbone logic for the decryption process _(Partially complete)_

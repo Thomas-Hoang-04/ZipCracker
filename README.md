@@ -1,5 +1,5 @@
 ![Static Badge](https://img.shields.io/badge/version-0.1.1-blue)
-![Static Badge](https://img.shields.io/badge/release-alpha-yellow)
+![Static Badge](https://img.shields.io/badge/release-beta-yellow)
 # ZipCracker
 
 _ZipCracker is a Compose Multiplatform Desktop app dedicated to efficiently cracking encrypted ZIP files on personal computers_
@@ -19,8 +19,8 @@ _ZipCracker is a Compose Multiplatform Desktop app dedicated to efficiently crac
 _**Note on features**: maximum passwords length are being limited to 8 characters due to consideration for feasibility - this is for personal use, after all_
 
 ### Repository content
-- `main`: Contain the original backbone code for the decryption process
-- `app`: Contain code for the app GUI (Require Android Studio with Compose Multiplatform support)
+- `main`: Contain the original backbone logic for the decryption process _(Partially complete)_
+- `app`: Contain code for the app GUI (Require Android Studio with Compose Multiplatform support) _(Optimized, with refined decryption and multithreading logic)_
 
 ### Main stack
 - [Kotlin v2.1.0 by JerBrains](https://kotlinlang.org/)

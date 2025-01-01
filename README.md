@@ -1,4 +1,4 @@
-![Static Badge](https://img.shields.io/badge/version-0.1.1-blue)
+![Static Badge](https://img.shields.io/badge/version-1.0.0-blue)
 ![Static Badge](https://img.shields.io/badge/release-beta-yellow)
 # ZipCracker
 
@@ -23,7 +23,7 @@ _**Note on features**: maximum passwords length are being limited to 8 character
 - `app`: Contain code for the app GUI (Require Android Studio with Compose Multiplatform support) _(Optimized, with refined decryption and multithreading logic)_
 
 ### Main stack
-- [Kotlin v2.1.0 by JerBrains](https://kotlinlang.org/)
+- [Kotlin v2.1.0 by JetBrains](https://kotlinlang.org/)
 - [Compose Multiplatform v1.7.3](https://www.jetbrains.com/compose-multiplatform/?utm_campaign=kmp&utm_medium=docs&utm_source=github) _(Desktop GUI)_
 - [Java Native Acesss (JNA) library](https://github.com/java-native-access/jna?tab=readme-ov-file) _(native access to OS API for multithreading support)_
 - IDE: Android Studio (Version 2024.3.1 Meerkat) & IntelliJ IDEA Ultimate (Version 2024.2.5) 

@@ -1,4 +1,4 @@
-package com.thomas.zipcracker.processor
+package com.thomas.zipcracker.crypto
 
 class ZipCryptoEngine {
     private val keys: LongArray = orgKeys.copyOf()

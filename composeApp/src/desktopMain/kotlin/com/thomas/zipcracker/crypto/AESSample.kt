@@ -1,4 +1,6 @@
-package com.thomas.zipcracker.processor
+package com.thomas.zipcracker.crypto
+
+import com.thomas.zipcracker.metadata.Compression
 
 data class AESSample(
     val version: Int,

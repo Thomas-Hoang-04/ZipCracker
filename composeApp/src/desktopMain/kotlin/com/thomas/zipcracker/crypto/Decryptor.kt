@@ -1,4 +1,4 @@
-package com.thomas.zipcracker.processor
+package com.thomas.zipcracker.crypto
 
 abstract class Decryptor<T>() {
     protected abstract val samples: List<T>

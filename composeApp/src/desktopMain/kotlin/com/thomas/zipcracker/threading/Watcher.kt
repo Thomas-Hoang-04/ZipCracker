@@ -1,4 +1,4 @@
-package com.thomas.zipcracker.processor
+package com.thomas.zipcracker.threading
 
 object Watcher {
     @Volatile
@@ -37,4 +37,10 @@ object Watcher {
     val speedRecord: MutableList<Long> = mutableListOf()
 
     object Lock
+
+    fun calculateFivePercentLow(): Long {
+        val sortedSpeed = speedRecord.sorted()
+        val fivePercentCount = (sortedSpeed.size * 0.05).coerceAtLeast(5.0).toInt()
+        return sortedSpeed.take(fivePercentCount).average().toLong()
+    }
 }

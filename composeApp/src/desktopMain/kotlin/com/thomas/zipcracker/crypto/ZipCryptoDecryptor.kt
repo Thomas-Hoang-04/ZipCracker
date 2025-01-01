@@ -1,4 +1,6 @@
-package com.thomas.zipcracker.processor
+package com.thomas.zipcracker.crypto
+import com.thomas.zipcracker.metadata.Compression
+import com.thomas.zipcracker.utility.DeflateUtil
 import com.thomas.zipcracker.utility.*
 import java.util.zip.CRC32
 

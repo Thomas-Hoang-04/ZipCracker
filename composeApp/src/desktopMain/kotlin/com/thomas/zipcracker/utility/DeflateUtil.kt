@@ -1,4 +1,4 @@
-package com.thomas.zipcracker.processor
+package com.thomas.zipcracker.utility
 
 import java.io.ByteArrayOutputStream
 import java.util.zip.Inflater

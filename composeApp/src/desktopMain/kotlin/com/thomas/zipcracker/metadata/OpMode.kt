@@ -1,4 +1,4 @@
-package com.thomas.zipcracker.processor
+package com.thomas.zipcracker.metadata
 
 enum class OpMode {
     BRUTE,

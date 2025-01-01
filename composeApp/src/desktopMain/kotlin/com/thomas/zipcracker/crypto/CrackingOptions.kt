@@ -1,7 +1,7 @@
-package com.thomas.zipcracker.component
+package com.thomas.zipcracker.crypto
 
-import com.thomas.zipcracker.processor.OpMode
-import com.thomas.zipcracker.processor.ZIPStatus
+import com.thomas.zipcracker.metadata.OpMode
+import com.thomas.zipcracker.metadata.ZIPStatus
 import kotlinx.serialization.Serializable
 
 @Serializable

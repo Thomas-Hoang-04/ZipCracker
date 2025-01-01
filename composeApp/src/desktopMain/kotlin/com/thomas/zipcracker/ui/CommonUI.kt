@@ -1,18 +1,24 @@
-package com.thomas.zipcracker.component
+package com.thomas.zipcracker.ui
 
+import androidx.compose.desktop.ui.tooling.preview.Preview
 import androidx.compose.runtime.Composable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Remove
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.*
 import androidx.compose.runtime.LaunchedEffect
@@ -24,14 +30,17 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
@@ -40,30 +49,55 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import com.thomas.zipcracker.processor.OpMode
-import com.thomas.zipcracker.processor.Watcher
-import com.thomas.zipcracker.ui.ExitColor
-import com.thomas.zipcracker.ui.IndicatorColor
-import com.thomas.zipcracker.ui.LightPrimaryColor
+import androidx.datastore.core.DataStoreFactory
+import com.thomas.zipcracker.App
+import com.thomas.zipcracker.metadata.AppState
+import com.thomas.zipcracker.metadata.OpMode
+import com.thomas.zipcracker.threading.Watcher
+import com.thomas.zipcracker.utility.PreferencesSerializer
 import com.thomas.zipcracker.utility.formatNumber
+import com.thomas.zipcracker.utility.getSaveDirectory
+import com.thomas.zipcracker.utility.masterPath
+import com.thomas.zipcracker.utility.writeLogFile
 import io.github.vinceglb.filekit.compose.PickerResultLauncher
+import io.github.vinceglb.filekit.compose.rememberFileSaverLauncher
+import io.github.vinceglb.filekit.core.FileKitPlatformSettings
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import zipcracker.composeapp.generated.resources.Res
-import zipcracker.composeapp.generated.resources.close
+import zipcracker.composeapp.generated.resources.avg_speed
 import zipcracker.composeapp.generated.resources.closing
+import zipcracker.composeapp.generated.resources.`continue`
 import zipcracker.composeapp.generated.resources.dec
+import zipcracker.composeapp.generated.resources.file_fail
+import zipcracker.composeapp.generated.resources.file_success
 import zipcracker.composeapp.generated.resources.inc
-import zipcracker.composeapp.generated.resources.minimize
+import zipcracker.composeapp.generated.resources.max_speed
+import zipcracker.composeapp.generated.resources.pwd_consumed
+import zipcracker.composeapp.generated.resources.pwd_entered
+import zipcracker.composeapp.generated.resources.pwd_msg
+import zipcracker.composeapp.generated.resources.pwd_none
+import zipcracker.composeapp.generated.resources.save_file
 import zipcracker.composeapp.generated.resources.select_button
-import zipcracker.composeapp.generated.resources.warning_message
-import zipcracker.composeapp.generated.resources.warning_title
+import zipcracker.composeapp.generated.resources.speed_low
+import zipcracker.composeapp.generated.resources.stat_dict_progress
+import zipcracker.composeapp.generated.resources.stat_progress
+import zipcracker.composeapp.generated.resources.stat_speed
+import zipcracker.composeapp.generated.resources.stat_time
+import zipcracker.composeapp.generated.resources.state_fail
+import zipcracker.composeapp.generated.resources.state_success
+import zipcracker.composeapp.generated.resources.statistics
+import zipcracker.composeapp.generated.resources.time
+import java.awt.Window
+import java.io.File
 import kotlin.time.Duration.Companion.seconds
 
 @Composable
 fun CloseDialog() {
     Dialog(
-        onDismissRequest = { },
+        onDismissRequest = {},
         properties = DialogProperties(
             dismissOnBackPress = false,
             dismissOnClickOutside = false,
@@ -119,7 +153,12 @@ fun CloseDialog() {
 
 @Composable
 fun ConfirmDialog(
-    onMinimize: () -> Unit,
+    icon: ImageVector,
+    title: String,
+    message: String,
+    positiveText: String,
+    negativeText: String,
+    onAccept: () -> Unit,
     onExit: () -> Unit
 ) {
     Dialog(
@@ -146,14 +185,14 @@ fun ConfirmDialog(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
-                    imageVector = Icons.Default.Warning,
-                    contentDescription = "Exit warning",
+                    imageVector = icon,
+                    contentDescription = "Warning",
                     tint = LightPrimaryColor,
                     modifier = Modifier.size(26.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    stringResource(Res.string.warning_title, "Decrypting"),
+                    title,
                     color = MaterialTheme.colorScheme.contentColorFor(
                         MaterialTheme.colorScheme.background
                     ),
@@ -163,7 +202,7 @@ fun ConfirmDialog(
             }
             Spacer(modifier = Modifier.height(2.dp))
             Text(
-                stringResource(Res.string.warning_message),
+                message,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 32.dp, vertical = 4.dp),
@@ -183,13 +222,13 @@ fun ConfirmDialog(
                 horizontalArrangement = Arrangement.End
             ) {
                 Button(
-                    onClick = onMinimize,
+                    onClick = onAccept,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = LightPrimaryColor,
                         contentColor = Color.White
                     )
                 ) {
-                    Text(stringResource(Res.string.minimize), fontSize = 14.sp)
+                    Text(positiveText, fontSize = 14.sp)
                 }
                 Spacer(modifier = Modifier.width(8.dp))
                 Button(
@@ -199,7 +238,7 @@ fun ConfirmDialog(
                         contentColor = Color.White
                     )
                 ) {
-                    Text(stringResource(Res.string.close), fontSize = 14.sp)
+                    Text(negativeText, fontSize = 14.sp)
                 }
             }
             Spacer(modifier = Modifier.height(10.dp))
@@ -466,7 +505,7 @@ fun ProgressTracker(
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Text(
-                "Elapsed time: ${time.seconds}",
+                stringResource(Res.string.stat_time, time.seconds.toString()),
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.contentColorFor(MaterialTheme.colorScheme.background),
             )
@@ -538,23 +577,265 @@ fun ProgressTracker(
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Text(
-                "Speed: $displaySpeed pwd/s",
+                stringResource(Res.string.stat_speed, displaySpeed),
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.contentColorFor(MaterialTheme.colorScheme.background),
             )
             if (opMode == OpMode.DICTIONARY) {
                 Text(
-                    "Processed: $progressDict",
+                    stringResource(Res.string.stat_dict_progress, progressDict),
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.contentColorFor(MaterialTheme.colorScheme.background),
                 )
             } else {
                 Text(
-                    "Processed: $displayProgress%",
+                    stringResource(Res.string.stat_progress, displayProgress),
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.contentColorFor(MaterialTheme.colorScheme.background),
                 )
             }
         }
     }
+}
+
+@Composable
+fun ResultTitle(
+    state: MutableState<AppState>,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.padding(horizontal = 10.dp)
+    ) {
+            Icon(
+                imageVector = if (state.value == AppState.COMPLETED) Icons.Default.CheckCircle
+                    else Icons.Default.Cancel,
+                contentDescription = "Result state",
+                tint = if (state.value == AppState.COMPLETED) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.error,
+                modifier = Modifier.size(26.dp)
+            )
+            Text(
+                stringResource(
+                    if (state.value == AppState.COMPLETED) Res.string.state_success
+                    else Res.string.state_fail
+                ),
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Medium,
+                color = if (state.value == AppState.COMPLETED) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.error
+            )
+        }
+}
+
+data class KeyValueText(
+    val title: String,
+    val value: String,
+)
+
+@Composable
+fun KeyValueText(content: KeyValueText) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            content.title,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.contentColorFor(MaterialTheme.colorScheme.background),
+        )
+        Text(
+            content.value,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Normal,
+            color = MaterialTheme.colorScheme.contentColorFor(MaterialTheme.colorScheme.background),
+        )
+    }
+}
+
+@Composable
+fun ResultDetails(
+    parentWindow: Window?,
+    pwdSet: HashSet<String>,
+    state: MutableState<AppState>,
+) {
+    val scope = rememberCoroutineScope()
+    val size = pwdSet.size
+    val pwd = remember { pwdSet.joinToString() }
+
+    val timeStat = stringResource(Res.string.time)
+    val avgSpeed = stringResource(Res.string.avg_speed)
+    val maxSpeed = stringResource(Res.string.max_speed)
+    val speedLow = stringResource(Res.string.speed_low)
+    val consumed = stringResource(Res.string.pwd_consumed)
+    val entered = stringResource(Res.string.pwd_entered)
+
+    var fileSaveSuccess by remember { mutableStateOf<Boolean?>(null) }
+
+    val speed = remember { if (Watcher.timer > 0) Watcher.pwdEntered / Watcher.timer
+        else Watcher.speedRecord.average().toLong() }
+
+    val statistics = remember {
+        listOf(
+            KeyValueText(timeStat, Watcher.timer.seconds.toString()),
+            KeyValueText(avgSpeed, "$speed pwd/s"),
+            KeyValueText(
+                maxSpeed,
+                "${formatNumber(
+                    Watcher.speedRecord.maxOrNull()?.toDouble() ?: 0.0
+                )} pwd/s"
+            ),
+            KeyValueText(
+                speedLow,
+                "${formatNumber(
+                    Watcher.calculateFivePercentLow().toDouble()
+                )} pwd/s"
+            ),
+            KeyValueText(entered, formatNumber(Watcher.pwdEntered.toDouble())),
+            KeyValueText(consumed, formatNumber(Watcher.pwdConsumed.toDouble())),
+        )
+    }
+
+    val statSaver = rememberFileSaverLauncher(
+        platformSettings = FileKitPlatformSettings(
+            parentWindow = parentWindow
+        )
+    ) { f ->
+        fileSaveSuccess = f != null
+    }
+
+    Column(
+        verticalArrangement = Arrangement.spacedBy(24.dp),
+        modifier = Modifier
+            .padding(horizontal = 20.dp)
+            .fillMaxWidth()
+    ) {
+        Text(
+            stringResource(Res.string.statistics),
+            fontSize = 20.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.contentColorFor(
+                MaterialTheme.colorScheme.background),
+        )
+        Text(
+            if (size == 0) stringResource(Res.string.pwd_none)
+            else pluralStringResource(Res.plurals.pwd_msg, size, pwd),
+            fontSize = 18.sp,
+            fontWeight = FontWeight.SemiBold,
+            fontStyle = FontStyle.Italic,
+            color = MaterialTheme.colorScheme.contentColorFor(MaterialTheme.colorScheme.background),
+        )
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(2),
+            verticalArrangement = Arrangement.spacedBy(20.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 200.dp)
+        ) {
+            items(statistics) { item ->
+                KeyValueText(item)
+            }
+        }
+        Spacer(modifier = Modifier.height(0.dp))
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Button(
+                    colors = ButtonDefaults.buttonColors(
+                        contentColor = Color.White,
+                        disabledContentColor = MaterialTheme.colorScheme.contentColorFor(
+                            MaterialTheme.colorScheme.background),
+                    ),
+                    onClick = {
+                        scope.launch {
+                            val file = writeLogFile(statistics, pwdSet)
+                            statSaver.launch(
+                                baseName = "statistics",
+                                extension = "txt",
+                                initialDirectory = getSaveDirectory(),
+                                bytes = file
+                            )
+                        }
+                    }
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.FileDownload,
+                        contentDescription = "Save statistics",
+                        modifier = Modifier.size(20.dp).align(Alignment.CenterVertically),
+                    )
+                    Spacer(modifier = Modifier.width(5.dp))
+                    Text(
+                        stringResource(Res.string.save_file),
+                        fontSize = 17.sp,
+                        modifier = Modifier.align(Alignment.CenterVertically),
+                    )
+                }
+                if (fileSaveSuccess == true) {
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Icon(
+                        imageVector = Icons.Filled.CheckCircle,
+                        contentDescription = "File saved",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp),
+                    )
+                    Text(
+                        stringResource(Res.string.file_success),
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(start = 6.dp),
+                    )
+                }
+                else if (fileSaveSuccess == false) {
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Icon(
+                        imageVector = Icons.Filled.Cancel,
+                        contentDescription = "File save failed",
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(20.dp),
+                    )
+                    Text(
+                        stringResource(Res.string.file_fail),
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(start = 6.dp),
+                    )
+                }
+            }
+            Button(
+                onClick = { state.value = AppState.NOT_INITIATED },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = LightButtonColor,
+                    contentColor = Color.White,
+                    disabledContentColor = MaterialTheme.colorScheme.contentColorFor(
+                        MaterialTheme.colorScheme.background),
+                ),
+            ) {
+                Text(
+                    stringResource(Res.string.`continue`),
+                    fontSize = 17.sp,
+                )
+            }
+        }
+    }
+}
+
+@Preview
+@Composable
+fun AppPreview() {
+    App(
+        null,
+        state = mutableStateOf(AppState.COMPLETED),
+        mutableListOf(),
+        DataStoreFactory.create(
+            serializer = PreferencesSerializer(),
+            produceFile = { File("$masterPath/preferences.json") }
+        )
+    )
 }

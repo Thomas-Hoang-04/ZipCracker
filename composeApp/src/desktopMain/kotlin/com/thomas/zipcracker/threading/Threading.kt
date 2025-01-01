@@ -5,16 +5,15 @@ import androidx.datastore.core.DataStore
 import com.sun.jna.Native
 import com.sun.jna.platform.win32.Kernel32
 import com.sun.jna.platform.win32.WinNT
-import com.thomas.zipcracker.component.AppState
-import com.thomas.zipcracker.component.CrackingOptions
-import com.thomas.zipcracker.processor.AESDecryptor
-import com.thomas.zipcracker.processor.Decryptor
-import com.thomas.zipcracker.processor.LastPwdMetadata
-import com.thomas.zipcracker.processor.OpMode
-import com.thomas.zipcracker.processor.UserSettings
-import com.thomas.zipcracker.processor.Watcher
-import com.thomas.zipcracker.processor.ZIPStatus
-import com.thomas.zipcracker.processor.ZipCryptoDecryptor
+import com.thomas.zipcracker.metadata.AppState
+import com.thomas.zipcracker.crypto.CrackingOptions
+import com.thomas.zipcracker.crypto.AESDecryptor
+import com.thomas.zipcracker.crypto.Decryptor
+import com.thomas.zipcracker.metadata.LastPwdMetadata
+import com.thomas.zipcracker.metadata.OpMode
+import com.thomas.zipcracker.utility.UserPreferences
+import com.thomas.zipcracker.metadata.ZIPStatus
+import com.thomas.zipcracker.crypto.ZipCryptoDecryptor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -28,7 +27,6 @@ import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import kotlin.math.pow
-import kotlin.time.Duration.Companion.seconds
 
 fun findOperationCPUIndex(mask: Int): List<Int> {
     val res = mutableListOf<Int>()
@@ -122,6 +120,7 @@ class BruteProducer(
         Watcher.maxPassword = chars.size.toDouble().pow(maxSize.toDouble()).toLong()
         chars
     }
+    private var startLength = 1
     private fun backtrack(current: StringBuilder, length: Int) {
         if (Watcher.stop) return
         if (current.length == length) {
@@ -146,19 +145,14 @@ class BruteProducer(
         val inst: Affinity = Native.load("Kernel32", Affinity::class.java) as Affinity
         inst.SetThreadAffinityMask(handle, mask)
         try {
-            var startLength = 1
-            var startString = ""
-            if (lastPwd != null) {
-                startLength = lastPwd.length
-                startString = lastPwd.dropLast(1)
-            }
+            if (lastPwd != null) { startLength = lastPwd.length }
             outer@ for (length in startLength..maxSize) {
                 if (Watcher.stop) break@outer
                 while (Watcher.pause) {
                     if (Watcher.stop) break@outer
                     sleep(250)
                 }
-                backtrack(StringBuilder(startString), length)
+                backtrack(StringBuilder(), length)
             }
             if (Watcher.stop) return
             repeat(workerCount) { queue.put("@finish") }
@@ -172,7 +166,8 @@ class Consumer<T>(
     private val mask: Int,
     private val decryptor: Decryptor<T>,
     private val resultQueue: ConcurrentLinkedQueue<String>,
-    private val pseudoWorker: Boolean = false
+    private val pseudoWorker: Boolean = false,
+    private val benchmark: Boolean = false
 ): Thread() {
     override fun run() {
         val handle: WinNT.HANDLE = Kernel32.INSTANCE.GetCurrentThread()
@@ -192,17 +187,25 @@ class Consumer<T>(
                     Watcher.pwdConsumed++
                 }
                 val res = decryptor.checkPassword(pwd)
-                if (res) resultQueue.add(pwd)
+                if (res) {
+                    resultQueue.add(pwd)
+                    if (!benchmark) {
+                        Watcher.stop = true
+                        break@outer
+                    }
+                }
                 if (pseudoWorker) sleep(10)
             }
         } catch (e: InterruptedException) { e.toString() }
-        finally { latch.countDown() }
+        finally {
+            latch.countDown()
+        }
     }
 }
 
 class Tracker(
     private val mask: Int,
-    private val dataStore: DataStore<UserSettings>,
+    private val dataStore: DataStore<UserPreferences>,
 ): Thread() {
     override fun run() {
         val handle: WinNT.HANDLE = Kernel32.INSTANCE.GetCurrentThread()
@@ -250,14 +253,15 @@ fun crack(
     result: ConcurrentLinkedQueue<String>,
     error: MutableState<String?>,
     state: MutableState<AppState>,
-    datastore: DataStore<UserSettings>,
+    datastore: DataStore<UserPreferences>,
+    lastPwdMetadata: LastPwdMetadata? = null
 ) {
     val scope = CoroutineScope(Dispatchers.IO)
     val mask = options.threadMask
     val worker = mask.countOneBits()
     val decryptor: Decryptor<*> = when (options.encryption) {
         ZIPStatus.AES_ENCRYPTION -> AESDecryptor(options.file)
-        ZIPStatus.STANDARD_ENCRYPTION-> ZipCryptoDecryptor(options.file)
+        ZIPStatus.STANDARD_ENCRYPTION -> ZipCryptoDecryptor(options.file)
         else -> {
             error.value = "Unknown encryption type"
             return
@@ -287,17 +291,20 @@ fun crack(
     val pwdQueue: BlockingQueue<String> = LinkedBlockingQueue(2000 * worker)
     when (options.opMode) {
         OpMode.DICTIONARY -> DictProducer(
-                queue = pwdQueue,
-                workerCount = worker,
-                mask = mask,
-                pwdPath = options.dictFiles
+            queue = pwdQueue,
+            workerCount = worker,
+            mask = mask,
+            pwdPath = options.dictFiles,
+            lastPwdInfo = lastPwdMetadata
         )
+
         else -> BruteProducer(
             queue = pwdQueue,
             workerCount = worker,
             mask = mask,
             maxSize = options.maxPwdLength,
-            pwdOptions = options.pwdOptions
+            pwdOptions = options.pwdOptions,
+            lastPwd = lastPwdMetadata?.lastPwd
         )
     }.also { threadPool.add(it) }
     threadPool.add(Tracker(0x001, datastore))
@@ -311,7 +318,8 @@ fun crack(
                 mask = assigned,
                 decryptor = decryptor,
                 resultQueue = result,
-                pseudoWorker = assigned == 0x1
+                pseudoWorker = assigned == 0x1,
+                benchmark = options.opMode == OpMode.BENCHMARK
             )
         )
     }
@@ -328,19 +336,16 @@ fun crack(
             break
         }
     }
-    if (Watcher.stop) { Watcher.tracker = false }
+    if (Watcher.stop) {
+        Watcher.tracker = false
+        threadPool.forEach(Thread::interrupt)
+    }
     threadPool.forEach(Thread::join)
     state.value = if (state.value == AppState.CANCELLED) state.value else AppState.COMPLETED
     scope.launch {
-        datastore.updateData { UserSettings(uiMode = it.uiMode) }
+        datastore.updateData { UserPreferences(uiMode = it.uiMode) }
     }
     threadPool.clear()
 
-    println("Time elapsed: ${Watcher.timer.seconds}")
-    println("Password found: ${result.toHashSet().joinToString()}")
-    println("Password consumed: ${Watcher.pwdConsumed}")
-    println("Password entered: ${Watcher.pwdEntered}")
-    println("Average speed: ${Watcher.pwdEntered / Watcher.timer}")
-    println("Max speed: ${Watcher.speedRecord.maxOrNull()}")
 }
 

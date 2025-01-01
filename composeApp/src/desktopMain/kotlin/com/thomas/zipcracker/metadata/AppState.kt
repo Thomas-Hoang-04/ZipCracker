@@ -1,4 +1,4 @@
-package com.thomas.zipcracker.component
+package com.thomas.zipcracker.metadata
 
 enum class AppState {
     RUNNING,

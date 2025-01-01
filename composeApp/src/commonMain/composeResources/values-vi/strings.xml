@@ -31,4 +31,30 @@
     <string name="encryption_error">Tệp ZIP không được mã hóa</string>
     <string name="select_dict_file">Chọn tệp từ điển</string>
     <string name="select_dict_prompt">Địa chỉ tệp từ điển</string>
+    <string name="stat_time">Thời gian: %1$s</string>
+    <string name="stat_speed">Tốc độ: %1$s pwd/s</string>
+    <string name="stat_progress">Tiến độ: %1$s%</string>
+    <string name="stat_dict_progress">Đã xử lý: %1$s</string>
+    <string name="state_success">Giải mã thành công</string>
+    <string name="state_fail">Giải mã bị hủy</string>
+    <string name="statistics">Chi tiết phiên giải mã</string>
+    <string name="pwd_none">Không tìm thấy mật khẩu</string>
+    <plurals name="pwd_msg">
+        <item quantity="one">Mật khẩu tìm thấy: %1$s</item>
+        <item quantity="other">Các mật khẩu tìm thấy: %1$s</item>
+    </plurals>
+    <string name="speed_low">Tốc độ (5% thấp nhất): </string>
+    <string name="avg_speed">Tốc độ trung bình: </string>
+    <string name="max_speed">Tốc độ tối đa: </string>
+    <string name="pwd_entered">Số mật khẩu đã nhập vào: </string>
+    <string name="pwd_consumed">Số mật khẩu đã xử lý: </string>
+    <string name="time">Thời gian thực hiện: </string>
+    <string name="save_file">Lưu vào tệp</string>
+    <string name="file_success">Lưu tệp thành công</string>
+    <string name="file_fail">Lưu tệp thất bại. Hãy thử lại</string>
+    <string name="continue">Tiếp tục</string>
+    <string name="recovery_title">Phiên trước đây được phát hiện</string>
+    <string name="recovery_msg">Bạn có muốn tiếp tục phiên trước đó không?</string>
+    <string name="recovery_yes">Có</string>
+    <string name="recovery_no">Không</string>
 </resources>

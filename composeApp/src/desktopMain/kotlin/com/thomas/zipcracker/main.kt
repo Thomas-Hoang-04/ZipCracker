@@ -1,5 +1,7 @@
 package com.thomas.zipcracker
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -21,11 +23,11 @@ import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import androidx.datastore.core.DataStoreFactory
-import com.thomas.zipcracker.component.AppState
-import com.thomas.zipcracker.component.CloseDialog
-import com.thomas.zipcracker.component.ConfirmDialog
-import com.thomas.zipcracker.processor.UserSettingsSerializer
-import com.thomas.zipcracker.processor.Watcher
+import com.thomas.zipcracker.metadata.AppState
+import com.thomas.zipcracker.ui.CloseDialog
+import com.thomas.zipcracker.ui.ConfirmDialog
+import com.thomas.zipcracker.utility.PreferencesSerializer
+import com.thomas.zipcracker.threading.Watcher
 import com.thomas.zipcracker.ui.Theme
 import com.thomas.zipcracker.ui.ZipCrackerTheme
 import com.thomas.zipcracker.ui.isDarkThemeActive
@@ -36,15 +38,21 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
+import org.jetbrains.compose.resources.stringResource
 import zipcracker.composeapp.generated.resources.Res
+import zipcracker.composeapp.generated.resources.close
+import zipcracker.composeapp.generated.resources.minimize
+import zipcracker.composeapp.generated.resources.warning_message
+import zipcracker.composeapp.generated.resources.warning_title
 import zipcracker.composeapp.generated.resources.zipcracker
 import java.io.File
+import java.util.Locale
 import kotlin.time.Duration.Companion.seconds
 
 @OptIn(InternalComposeUiApi::class)
 fun main() {
     val datastore = DataStoreFactory.create(
-        serializer = UserSettingsSerializer(),
+        serializer = PreferencesSerializer(),
         produceFile = { File("$masterPath/resources/preferences.json") }
     )
     application {
@@ -63,27 +71,23 @@ fun main() {
         var pwdConsumed by remember { mutableLongStateOf(0) }
         val windowState = rememberWindowState(
             width = 800.dp,
-            height = 800.dp,
+            height = 840.dp,
             position = WindowPosition.Aligned(Alignment.Center),
             placement = WindowPlacement.Floating
         )
 
+        Locale.setDefault(Locale.of("vi", "VN"))
+
         val handleExit: suspend () -> Unit = {
             if (!Watcher.stop) {
                 Watcher.stop = true
-                while (pool.any { it.isAlive }) {
-                    pool.forEach(Thread::interrupt)
-                    delay(250)
-                }
-                pool.clear()
+                delay(1000)
                 if (scope.isActive) scope.cancel()
             }
             exitApplication()
         }
 
         LaunchedEffect(state.value) {
-            delay(250)
-            println("State: ${state.value}")
             delay(1000)
             while (state.value == AppState.RUNNING) {
                 pwdConsumed = Watcher.pwdConsumed
@@ -167,13 +171,16 @@ fun main() {
                 resizable = false,
                 icon = painterResource(Res.drawable.zipcracker)
             ) {
-                if (showExitDialog) {
-                    CloseDialog()
-                }
+                if (showExitDialog) { CloseDialog() }
 
                 if (showConfirmDialog) {
                     ConfirmDialog(
-                        onMinimize = {
+                        icon = Icons.Default.Warning,
+                        title = stringResource(Res.string.warning_title, "Decrypting"),
+                        message = stringResource(Res.string.warning_message),
+                        positiveText = stringResource(Res.string.minimize),
+                        negativeText = stringResource(Res.string.close),
+                        onAccept = {
                             isVisible.value = false
                             showConfirmDialog = false
                         },

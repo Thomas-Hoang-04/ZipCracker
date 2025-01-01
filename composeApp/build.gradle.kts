@@ -44,20 +44,15 @@ kotlin {
 
 compose.desktop {
     application {
-        buildTypes.release.proguard {
-            version.set("7.6.1")
-            obfuscate.set(true)
-            optimize.set(true)
-        }
-
         mainClass = "com.thomas.zipcracker.MainKt"
 
         nativeDistributions {
             targetFormats(TargetFormat.Msi, TargetFormat.Deb, TargetFormat.Exe)
             packageName = "ZipCracker"
-            packageVersion = "1.0.0"
+            packageVersion = "0.1.1"
             description = "ZipCracker is a desktop application for cracking encrypted zip files"
             copyright = "© 2024 Thomas. All rights reserved"
+            vendor = "Thomas"
             licenseFile.set(file("LICENSE"))
 
             windows {

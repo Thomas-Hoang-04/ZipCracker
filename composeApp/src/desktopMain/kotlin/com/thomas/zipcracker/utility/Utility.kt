@@ -1,9 +1,23 @@
 package com.thomas.zipcracker.utility
 
-import com.thomas.zipcracker.processor.ZIPStatus
+import com.github.tkuenneth.nativeparameterstoreaccess.NativeParameterStoreAccess.IS_WINDOWS
+import com.thomas.zipcracker.metadata.ZIPStatus
+import com.thomas.zipcracker.ui.KeyValueText
+import org.jetbrains.compose.resources.getPluralString
+import org.jetbrains.compose.resources.getString
+import zipcracker.composeapp.generated.resources.Res
+import zipcracker.composeapp.generated.resources.pwd_msg
+import zipcracker.composeapp.generated.resources.pwd_none
+import zipcracker.composeapp.generated.resources.statistics
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.text.NumberFormat
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
 import kotlin.experimental.and
+import kotlin.time.Duration.Companion.seconds
 
 fun String.getLittleEndian(): String = this.chunked(2).reversed().joinToString("")
 
@@ -17,10 +31,7 @@ fun countOccur(input: String, target: String): Int {
 }
 
 fun formatNumber(n: Double): String {
-
-    val formatted: (Double) -> String = {
-        "%.2f".format(it)
-    }
+    val formatted: (Double) -> String = { "%.2f".format(it) }
 
     return when {
         n < 1e6 -> NumberFormat.getInstance().format(n)
@@ -61,5 +72,39 @@ fun checkZIPDecryption(path: String): ZIPStatus {
         } else ZIPStatus.NO_ENCRYPTION
     }
 }
+
+fun getSaveDirectory(): String = when {
+    IS_WINDOWS -> "C:\\Users\\${System.getProperty("user.name")}\\Documents"
+    else -> System.getProperty("user.home")
+}
+
+suspend fun writeLogFile(
+    content: List<KeyValueText>,
+    pwd: HashSet<String>,
+): ByteArray {
+    val title = getString(Res.string.statistics)
+    val pwdString = if (pwd.isEmpty()) getString(Res.string.pwd_none)
+    else getPluralString(Res.plurals.pwd_msg, pwd.size, pwd.joinToString())
+
+    val current = ZonedDateTime.now(ZoneId.systemDefault())
+    val date = LocalDate.ofInstant(current.toInstant(), ZoneId.systemDefault())
+    val storeDate = DateTimeFormatter.ofPattern("dd/MM/YYYY").format(date)
+    val time = current.toLocalTime().toSecondOfDay()
+    val storeTime = if (time < 3600) "0h ${time.seconds}"
+        else time.seconds.toString()
+    val timestamp = "${storeDate}, $storeTime"
+
+    ByteArrayOutputStream().use { bos ->
+        bos.write("$title\n".encodeToByteArray())
+        bos.write("Generated at: $timestamp\n".encodeToByteArray())
+        bos.write("$pwdString\n".encodeToByteArray())
+        content.forEach {
+            bos.write("${it.title}${it.value}\n".encodeToByteArray())
+        }
+        bos.write("--------------------------------------\n\n".encodeToByteArray())
+        return bos.toByteArray()
+    }
+}
+
 
 val masterPath: String = System.getProperty("user.dir").substringBefore("composeApp")

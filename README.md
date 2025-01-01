@@ -6,7 +6,7 @@ _ZipCracker is a Compose Multiplatform Desktop app dedicated to efficiently crac
 
 ### Operation modes:
 - Brute-force attack: available combinations of alphanumeric characters (lowercase/uppercase) and special characters
-- Dictionary attack: Support reading multiple dictionary files _(Required format: TXT files, each line contains one password)_
+- Dictionary attack: Support reading multiple dictionary files _(Required format: TXT files, one password for each line)_
 - Benchmark mode: Testing with brute-force attack of 4-character password
 
 ### Features

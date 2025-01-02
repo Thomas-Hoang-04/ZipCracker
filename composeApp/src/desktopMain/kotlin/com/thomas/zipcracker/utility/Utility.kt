@@ -137,5 +137,6 @@ suspend fun writeLogFile(
     }
 }
 
-
 val masterPath: String = System.getProperty("user.dir").substringBefore("composeApp")
+
+val resourcesDir: File = File(System.getProperty("compose.application.resources.dir"))

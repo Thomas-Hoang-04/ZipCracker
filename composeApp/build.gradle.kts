@@ -47,20 +47,27 @@ compose.desktop {
         mainClass = "com.thomas.zipcracker.MainKt"
 
         nativeDistributions {
-            targetFormats(TargetFormat.Msi, TargetFormat.Deb, TargetFormat.Exe)
+            buildTypes.release.proguard {
+                isEnabled.set(false)
+            }
+
+            targetFormats(TargetFormat.Msi, TargetFormat.Deb)
             packageName = "ZipCracker"
-            packageVersion = "0.1.1"
+            packageVersion = "1.0.0"
             description = "ZipCracker is a desktop application for cracking encrypted zip files"
             copyright = "© 2024 Thomas. All rights reserved"
             vendor = "Thomas"
             licenseFile.set(file("LICENSE"))
+            includeAllModules = true
+
+            appResourcesRootDir.set(project.layout.projectDirectory.dir("res"))
 
             windows {
                 iconFile.set(file("ZipCracker.ico"))
                 dirChooser = true
                 menuGroup = "ZipCracker"
-                perUserInstall = false
-                installationPath = "C:\\Program Files\\"
+                perUserInstall = true
+                installationPath = "D:\\"
                 includeAllModules = true
             }
 

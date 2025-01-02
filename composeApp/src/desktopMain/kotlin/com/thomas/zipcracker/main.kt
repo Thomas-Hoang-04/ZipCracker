@@ -31,7 +31,7 @@ import com.thomas.zipcracker.threading.Watcher
 import com.thomas.zipcracker.ui.Theme
 import com.thomas.zipcracker.ui.ZipCrackerTheme
 import com.thomas.zipcracker.ui.isDarkThemeActive
-import com.thomas.zipcracker.utility.masterPath
+import com.thomas.zipcracker.utility.resourcesDir
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
@@ -45,7 +45,6 @@ import zipcracker.composeapp.generated.resources.minimize
 import zipcracker.composeapp.generated.resources.warning_message
 import zipcracker.composeapp.generated.resources.warning_title
 import zipcracker.composeapp.generated.resources.zipcracker
-import java.io.File
 import java.util.Locale
 import kotlin.time.Duration.Companion.seconds
 
@@ -53,7 +52,7 @@ import kotlin.time.Duration.Companion.seconds
 fun main() {
     val datastore = DataStoreFactory.create(
         serializer = PreferencesSerializer(),
-        produceFile = { File("$masterPath/resources/preferences.json") }
+        produceFile = { resourcesDir.resolve("preferences.json") }
     )
     application {
         val scope = rememberCoroutineScope()

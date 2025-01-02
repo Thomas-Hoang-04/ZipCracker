@@ -19,6 +19,15 @@ fun countOccur(input: String, target: String): Int {
     return regex.findAll(input).count()
 }
 
+fun isDirectory(input: String): Boolean {
+    val rawContent = input.getByteArray()
+    val filenameSize = rawContent[23].toInt() shl 8 or rawContent[22].toInt()
+    val filenameEnd = (26 + filenameSize) * 2
+    val filename = input.substring(26 * 2, filenameEnd)
+    val res = filename.takeLast(2) == "2f"
+    return res
+}
+
 fun extractZip(input: String): List<String> {
     val target = "504b0304"
     val ans = countOccur(input, target)

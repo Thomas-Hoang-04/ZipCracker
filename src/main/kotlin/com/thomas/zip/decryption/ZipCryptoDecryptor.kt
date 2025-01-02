@@ -1,6 +1,5 @@
 package com.thomas.zip.decryption
 import com.thomas.zip.utility.*
-import sun.security.krb5.internal.crypto.crc32
 import java.util.zip.CRC32
 
 class ZipCryptoDecryptor(
@@ -13,7 +12,7 @@ class ZipCryptoDecryptor(
         val res = readFile(file).joinToString("") {
             byte -> "%02x".format(byte)
         }
-        val content = extractZip(res).map {
+        val content = extractZip(res).filter { !isDirectory(it) }.map {
             val rawContent = it.getByteArray()
             val compression = when (rawContent[4].toInt()) {
                 Compression.STORE.value -> Compression.STORE

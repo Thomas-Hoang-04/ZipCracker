@@ -1,9 +1,6 @@
 package com.thomas.zip.decryption
 
-import com.thomas.zip.utility.DeflateUtil
-import com.thomas.zip.utility.extractZip
-import com.thomas.zip.utility.getByteArray
-import com.thomas.zip.utility.readFile
+import com.thomas.zip.utility.*
 import javax.crypto.Cipher
 import javax.crypto.Mac
 import javax.crypto.SecretKeyFactory
@@ -50,7 +47,7 @@ class AESDecryptor(private val file: String): Decryptor<AESSample>() {
         val res = readFile(file).joinToString("") {
                 byte -> "%02x".format(byte)
         }
-        val samples = extractZip(res).map {
+        val samples = extractZip(res).filter { !isDirectory(it) }.map {
             val rawContent = it.getByteArray()
             val filenameSize = rawContent[23].toInt() shl 8 or rawContent[22].toInt()
             val extraFieldSize = rawContent[25].toInt() shl 8 or rawContent[24].toInt()

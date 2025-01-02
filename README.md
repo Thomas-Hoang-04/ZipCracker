@@ -1,5 +1,5 @@
 ![Static Badge](https://img.shields.io/badge/version-1.0.0-blue)
-![Static Badge](https://img.shields.io/badge/release-beta-yellow)
+![Static Badge](https://img.shields.io/badge/release-ready-green)
 # ZipCracker
 
 _ZipCracker is a Compose Multiplatform Desktop app dedicated to efficiently cracking encrypted ZIP files on personal computers_

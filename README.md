@@ -2,7 +2,7 @@
 ![Static Badge](https://img.shields.io/badge/release-ready-green)
 # ZipCracker
 
-_**Warning: This project is strictly for testing and researching purposes only**_
+_**Disclaimer: This project is strictly for testing and researching purposes only**_
 
 _ZipCracker is a Compose Multiplatform Desktop app dedicated to efficiently cracking encrypted ZIP files on personal computers_
 

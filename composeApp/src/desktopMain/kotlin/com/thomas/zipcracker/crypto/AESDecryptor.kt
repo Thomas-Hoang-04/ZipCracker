@@ -4,6 +4,7 @@ import com.thomas.zipcracker.metadata.Compression
 import com.thomas.zipcracker.utility.DeflateUtil
 import com.thomas.zipcracker.utility.extractZip
 import com.thomas.zipcracker.utility.getByteArray
+import com.thomas.zipcracker.utility.isDirectory
 import com.thomas.zipcracker.utility.readFile
 import javax.crypto.Cipher
 import javax.crypto.Mac
@@ -51,7 +52,7 @@ class AESDecryptor(private val file: String): Decryptor<AESSample>() {
         val res = readFile(file).joinToString("") {
                 byte -> "%02x".format(byte)
         }
-        val samples = extractZip(res).map {
+        val samples = extractZip(res).filter { !isDirectory(it) }.map {
             val rawContent = it.getByteArray()
             val filenameSize = rawContent[23].toInt() shl 8 or rawContent[22].toInt()
             val extraFieldSize = rawContent[25].toInt() shl 8 or rawContent[24].toInt()

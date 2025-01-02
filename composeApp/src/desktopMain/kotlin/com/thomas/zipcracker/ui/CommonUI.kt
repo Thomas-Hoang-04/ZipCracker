@@ -1,6 +1,5 @@
 package com.thomas.zipcracker.ui
 
-import androidx.compose.desktop.ui.tooling.preview.Preview
 import androidx.compose.runtime.Composable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -49,17 +48,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import androidx.datastore.core.DataStoreFactory
-import com.thomas.zipcracker.App
 import com.thomas.zipcracker.metadata.AppState
 import com.thomas.zipcracker.metadata.Log
 import com.thomas.zipcracker.metadata.OpMode
 import com.thomas.zipcracker.metadata.ZIPStatus
 import com.thomas.zipcracker.threading.Watcher
-import com.thomas.zipcracker.utility.PreferencesSerializer
 import com.thomas.zipcracker.utility.formatNumber
 import com.thomas.zipcracker.utility.getSaveDirectory
-import com.thomas.zipcracker.utility.masterPath
 import com.thomas.zipcracker.utility.writeLogFile
 import io.github.vinceglb.filekit.compose.PickerResultLauncher
 import io.github.vinceglb.filekit.compose.rememberFileSaverLauncher
@@ -100,7 +95,6 @@ import zipcracker.composeapp.generated.resources.state_success
 import zipcracker.composeapp.generated.resources.statistics
 import zipcracker.composeapp.generated.resources.time
 import java.awt.Window
-import java.io.File
 import kotlin.time.Duration.Companion.seconds
 
 @Composable
@@ -871,18 +865,4 @@ fun ResultDetails(
             }
         }
     }
-}
-
-@Preview
-@Composable
-fun AppPreview() {
-    App(
-        null,
-        state = mutableStateOf(AppState.COMPLETED),
-        mutableListOf(),
-        DataStoreFactory.create(
-            serializer = PreferencesSerializer(),
-            produceFile = { File("$masterPath/preferences.json") }
-        )
-    )
 }

@@ -34,6 +34,8 @@ fun String.getByteArray(): ByteArray = this.chunked(2).map {
         it.toInt(16).toByte()
     }.toByteArray()
 
+fun ByteArray.toRawString(delimiter: String = ""): String = this.joinToString(delimiter) { byte -> "%02x".format(byte) }
+
 fun countOccur(input: String, target: String): Int {
     val regex = Regex(target)
     return regex.findAll(input).count()
@@ -70,15 +72,30 @@ fun extractZip(input: String): List<String> {
 
 fun readFile(filename: String): ByteArray = File(filename).inputStream().readBytes()
 
+fun isDirectory(input: String): Boolean {
+    val rawContent = input.getByteArray()
+    val filenameSize = rawContent[23].toInt() shl 8 or rawContent[22].toInt()
+    val filenameEnd = (26 + filenameSize) * 2
+    val filename = input.substring(26 * 2, filenameEnd)
+    val res = filename.takeLast(2) == "2f"
+    return res
+}
+
 fun checkZIPDecryption(path: String): ZIPStatus {
     val rawData = readFile(path)
     return if (!rawData.copyOfRange(0, 4).contentEquals(byteArrayOf(0x50, 0x4b, 0x03, 0x04))) {
         ZIPStatus.UNKNOWN_FORMAT
     } else {
-        if (rawData[6] and 0x1 == 0x1.toByte()) {
-            if (rawData[8] == 0x63.toByte()) ZIPStatus.AES_ENCRYPTION
-            else ZIPStatus.STANDARD_ENCRYPTION
-        } else ZIPStatus.NO_ENCRYPTION
+        val samples = extractZip(rawData.toRawString())
+        for (sample in samples) {
+            if (isDirectory(sample)) continue
+            val rawSample = sample.getByteArray()
+            if (rawSample[2] and 0x1 == 0x1.toByte()) {
+                return if (rawSample[4] == 0x63.toByte()) ZIPStatus.AES_ENCRYPTION
+                else ZIPStatus.STANDARD_ENCRYPTION
+            }
+        }
+        ZIPStatus.NO_ENCRYPTION
     }
 }
 
@@ -136,7 +153,5 @@ suspend fun writeLogFile(
         return bos.toByteArray()
     }
 }
-
-val masterPath: String = System.getProperty("user.dir").substringBefore("composeApp")
 
 val resourcesDir: File = File(System.getProperty("compose.application.resources.dir"))

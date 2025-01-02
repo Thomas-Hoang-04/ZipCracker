@@ -43,6 +43,10 @@
         <item quantity="one">Mật khẩu tìm thấy: %1$s</item>
         <item quantity="other">Các mật khẩu tìm thấy: %1$s</item>
     </plurals>
+    <string name="stat_file">Tệp đã chọn: </string>
+    <string name="stat_encryption">Phương thức mã hóa: %1$s</string>
+    <string name="stat_method">Phương pháp: </string>
+    <string name="stat_thread">Số luồng CPU: </string>
     <string name="speed_low">Tốc độ (5% thấp nhất): </string>
     <string name="avg_speed">Tốc độ trung bình: </string>
     <string name="max_speed">Tốc độ tối đa: </string>

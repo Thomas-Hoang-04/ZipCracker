@@ -52,7 +52,9 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.datastore.core.DataStoreFactory
 import com.thomas.zipcracker.App
 import com.thomas.zipcracker.metadata.AppState
+import com.thomas.zipcracker.metadata.Log
 import com.thomas.zipcracker.metadata.OpMode
+import com.thomas.zipcracker.metadata.ZIPStatus
 import com.thomas.zipcracker.threading.Watcher
 import com.thomas.zipcracker.utility.PreferencesSerializer
 import com.thomas.zipcracker.utility.formatNumber
@@ -80,11 +82,18 @@ import zipcracker.composeapp.generated.resources.pwd_entered
 import zipcracker.composeapp.generated.resources.pwd_msg
 import zipcracker.composeapp.generated.resources.pwd_none
 import zipcracker.composeapp.generated.resources.save_file
+import zipcracker.composeapp.generated.resources.select_benchmark
+import zipcracker.composeapp.generated.resources.select_brute
 import zipcracker.composeapp.generated.resources.select_button
+import zipcracker.composeapp.generated.resources.select_dict
 import zipcracker.composeapp.generated.resources.speed_low
 import zipcracker.composeapp.generated.resources.stat_dict_progress
+import zipcracker.composeapp.generated.resources.stat_encryption
+import zipcracker.composeapp.generated.resources.stat_file
+import zipcracker.composeapp.generated.resources.stat_method
 import zipcracker.composeapp.generated.resources.stat_progress
 import zipcracker.composeapp.generated.resources.stat_speed
+import zipcracker.composeapp.generated.resources.stat_thread
 import zipcracker.composeapp.generated.resources.stat_time
 import zipcracker.composeapp.generated.resources.state_fail
 import zipcracker.composeapp.generated.resources.state_success
@@ -658,10 +667,32 @@ fun ResultDetails(
     parentWindow: Window?,
     pwdSet: HashSet<String>,
     state: MutableState<AppState>,
+    metadata: Log,
 ) {
     val scope = rememberCoroutineScope()
     val size = pwdSet.size
     val pwd = remember { pwdSet.joinToString() }
+
+    val fileTitle = stringResource(Res.string.stat_file)
+
+    val encryptionMode = when (metadata.encryption) {
+        ZIPStatus.AES_ENCRYPTION -> "AES"
+        ZIPStatus.STANDARD_ENCRYPTION -> "ZIP 2.0 (ZipCrypto)"
+        else -> "Unknown encryption"
+    }
+    val encryptionTitle = stringResource(Res.string.stat_encryption, encryptionMode)
+
+    val modeTitle = stringResource(Res.string.stat_method)
+    val brute = stringResource(Res.string.select_brute)
+    val dict = stringResource(Res.string.select_dict)
+    val benchmark = stringResource(Res.string.select_benchmark)
+    val method = when (metadata.mode) {
+        OpMode.BRUTE -> brute
+        OpMode.DICTIONARY -> dict
+        OpMode.BENCHMARK -> benchmark
+    }
+
+    val threadTitle = stringResource(Res.string.stat_thread)
 
     val timeStat = stringResource(Res.string.time)
     val avgSpeed = stringResource(Res.string.avg_speed)
@@ -672,11 +703,13 @@ fun ResultDetails(
 
     var fileSaveSuccess by remember { mutableStateOf<Boolean?>(null) }
 
-    val speed = remember { if (Watcher.timer > 0) Watcher.pwdEntered / Watcher.timer
+    val speed = remember { if (Watcher.timer > 10) Watcher.pwdEntered / Watcher.timer
         else Watcher.speedRecord.average().toLong() }
 
     val statistics = remember {
         listOf(
+            KeyValueText(modeTitle, method),
+            KeyValueText(threadTitle, metadata.thread.toString()),
             KeyValueText(timeStat, Watcher.timer.seconds.toString()),
             KeyValueText(avgSpeed, "$speed pwd/s"),
             KeyValueText(
@@ -718,6 +751,20 @@ fun ResultDetails(
                 MaterialTheme.colorScheme.background),
         )
         Text(
+            "$fileTitle${metadata.file}",
+            fontSize = 18.sp,
+            fontWeight = FontWeight.SemiBold,
+            fontStyle = FontStyle.Italic,
+            color = MaterialTheme.colorScheme.contentColorFor(MaterialTheme.colorScheme.background),
+        )
+        Text(
+            encryptionTitle,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.SemiBold,
+            fontStyle = FontStyle.Italic,
+            color = MaterialTheme.colorScheme.contentColorFor(MaterialTheme.colorScheme.background),
+        )
+        Text(
             if (size == 0) stringResource(Res.string.pwd_none)
             else pluralStringResource(Res.plurals.pwd_msg, size, pwd),
             fontSize = 18.sp,
@@ -753,7 +800,7 @@ fun ResultDetails(
                     ),
                     onClick = {
                         scope.launch {
-                            val file = writeLogFile(statistics, pwdSet)
+                            val file = writeLogFile(statistics, pwdSet, metadata)
                             statSaver.launch(
                                 baseName = "statistics",
                                 extension = "txt",

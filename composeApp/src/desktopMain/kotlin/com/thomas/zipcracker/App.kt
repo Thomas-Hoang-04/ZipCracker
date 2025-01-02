@@ -26,6 +26,7 @@ import androidx.datastore.core.DataStore
 import com.thomas.zipcracker.metadata.AppState
 import com.thomas.zipcracker.crypto.CrackingOptions
 import com.thomas.zipcracker.metadata.LastPwdMetadata
+import com.thomas.zipcracker.metadata.Log
 import com.thomas.zipcracker.ui.FileInput
 import com.thomas.zipcracker.ui.ProgressTracker
 import com.thomas.zipcracker.ui.RowWithIncrementer
@@ -265,7 +266,7 @@ fun App(
                 .padding(horizontal = 20.dp)
         ) {
             Button(
-                enabled = state.value != AppState.RUNNING,
+                enabled = state.value == AppState.NOT_INITIATED,
                 colors = ButtonDefaults.buttonColors(
                     contentColor = Color.White,
                     disabledContentColor = MaterialTheme.colorScheme.contentColorFor(
@@ -352,6 +353,12 @@ fun App(
                 parentWindow = parentWindow,
                 pwdSet = result.toHashSet(),
                 state = state,
+                metadata = Log(
+                    file = (file ?: return@Column).absolutePath,
+                    encryption = encryption,
+                    mode = opMode.value,
+                    thread = threadCount.value
+                ),
             )
         } else {
             TitleWithErrorWarning(

@@ -43,6 +43,10 @@
         <item quantity="one">Password found: %1$s</item>
         <item quantity="other">Passwords found: %1$s</item>
     </plurals>
+    <string name="stat_file">Selected file: </string>
+    <string name="stat_encryption">Encryption: %1$s</string>
+    <string name="stat_method">Mode: </string>
+    <string name="stat_thread">CPU threads: </string>
     <string name="speed_low">Speed (5% low): </string>
     <string name="avg_speed">Average speed: </string>
     <string name="max_speed">Maximum speed: </string>

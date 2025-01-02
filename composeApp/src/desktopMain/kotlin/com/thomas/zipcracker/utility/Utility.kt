@@ -1,6 +1,8 @@
 package com.thomas.zipcracker.utility
 
 import com.github.tkuenneth.nativeparameterstoreaccess.NativeParameterStoreAccess.IS_WINDOWS
+import com.thomas.zipcracker.metadata.Log
+import com.thomas.zipcracker.metadata.OpMode
 import com.thomas.zipcracker.metadata.ZIPStatus
 import com.thomas.zipcracker.ui.KeyValueText
 import org.jetbrains.compose.resources.getPluralString
@@ -8,6 +10,13 @@ import org.jetbrains.compose.resources.getString
 import zipcracker.composeapp.generated.resources.Res
 import zipcracker.composeapp.generated.resources.pwd_msg
 import zipcracker.composeapp.generated.resources.pwd_none
+import zipcracker.composeapp.generated.resources.select_benchmark
+import zipcracker.composeapp.generated.resources.select_brute
+import zipcracker.composeapp.generated.resources.select_dict
+import zipcracker.composeapp.generated.resources.stat_encryption
+import zipcracker.composeapp.generated.resources.stat_file
+import zipcracker.composeapp.generated.resources.stat_method
+import zipcracker.composeapp.generated.resources.stat_thread
 import zipcracker.composeapp.generated.resources.statistics
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -81,10 +90,28 @@ fun getSaveDirectory(): String = when {
 suspend fun writeLogFile(
     content: List<KeyValueText>,
     pwd: HashSet<String>,
+    metadata: Log,
 ): ByteArray {
     val title = getString(Res.string.statistics)
     val pwdString = if (pwd.isEmpty()) getString(Res.string.pwd_none)
     else getPluralString(Res.plurals.pwd_msg, pwd.size, pwd.joinToString())
+
+    val fileTitle = getString(Res.string.stat_file)
+    val threadTitle = getString(Res.string.stat_thread)
+
+    val methodTitle = getString(Res.string.stat_method)
+    val method = when (metadata.mode) {
+        OpMode.BRUTE -> getString(Res.string.select_brute)
+        OpMode.DICTIONARY -> getString(Res.string.select_dict)
+        OpMode.BENCHMARK -> getString(Res.string.select_benchmark)
+    }
+
+    val encryptionMode = when (metadata.encryption) {
+        ZIPStatus.AES_ENCRYPTION -> "AES"
+        ZIPStatus.STANDARD_ENCRYPTION -> "ZIP 2.0 (ZipCrypto)"
+        else -> "Unknown encryption"
+    }
+    val encryptionType = getString(Res.string.stat_encryption, encryptionMode)
 
     val current = ZonedDateTime.now(ZoneId.systemDefault())
     val date = LocalDate.ofInstant(current.toInstant(), ZoneId.systemDefault())
@@ -97,6 +124,10 @@ suspend fun writeLogFile(
     ByteArrayOutputStream().use { bos ->
         bos.write("$title\n".encodeToByteArray())
         bos.write("Generated at: $timestamp\n".encodeToByteArray())
+        bos.write("$fileTitle${metadata.file}\n".encodeToByteArray())
+        bos.write("$encryptionType\n".encodeToByteArray())
+        bos.write("$methodTitle$method\n".encodeToByteArray())
+        bos.write("$threadTitle${metadata.thread}\n".encodeToByteArray())
         bos.write("$pwdString\n".encodeToByteArray())
         content.forEach {
             bos.write("${it.title}${it.value}\n".encodeToByteArray())

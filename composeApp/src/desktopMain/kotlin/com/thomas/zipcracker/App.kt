@@ -481,6 +481,11 @@ fun App(
                                     pwdOptions.value = 0b0101
                                     pwdLength.value = 4
                                     pwdLengthDisplay.value = pwdLength.value.toString()
+                                    if (entry == OpMode.BENCHMARK) {
+                                        dir = null
+                                        dirError = null
+                                        decompress = false
+                                    }
                                 } else {
                                     dictionaryFile.clear()
                                     dictionaryDisplay = ""

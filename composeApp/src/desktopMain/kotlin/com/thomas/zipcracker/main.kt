@@ -70,7 +70,7 @@ fun main() {
         var pwdConsumed by remember { mutableLongStateOf(0) }
         val windowState = rememberWindowState(
             width = 800.dp,
-            height = 840.dp,
+            height = 960.dp,
             position = WindowPosition.Aligned(Alignment.Center),
             placement = WindowPlacement.Floating
         )

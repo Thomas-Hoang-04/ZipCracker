@@ -1,8 +1,12 @@
 <resources>
     <string name="app_name">ZipCracker</string>
     <string name="select_title">Chọn tệp ZIP cần giải mã</string>
-    <string name="select_prompt">Địa chỉ tệp</string>
-    <string name="select_button">Chọn tệp</string>
+    <string name="select_prompt_file">Địa chỉ tệp</string>
+    <string name="select_dir_title">Chọn thư mục để lưu tệp giải nén</string>
+    <string name="select_prompt_folder">Địa chỉ thư mục</string>
+    <string name="dir_err">Chưa chọn thư mục</string>
+    <string name="select_button_file">Chọn tệp</string>
+    <string name="select_button_folder">Chọn thư mục</string>
     <string name="select_method">Chọn phương pháp giải mã</string>
     <string name="select_brute">Tổ hợp tuần tự</string>
     <string name="select_dict">Từ điển</string>
@@ -18,7 +22,7 @@
     <string name="pwd_length">Độ dài mật khẩu tối đa</string>
     <string name="dec">Giảm</string>
     <string name="inc">Tăng</string>
-    <string name="closing">Đang đóng ứng dụng...</string>
+    <string name="closing">Đang đóng ứng dụng</string>
     <string name="warning_title">Giải mã đang hoạt động</string>
     <string name="warning_message">Bạn có chắc chắn muốn đóng ứng dụng?</string>
     <string name="minimize">Chạy trong nền</string>
@@ -61,4 +65,14 @@
     <string name="recovery_msg">Bạn có muốn tiếp tục phiên trước đó không?</string>
     <string name="recovery_yes">Có</string>
     <string name="recovery_no">Không</string>
+    <string name="no_encryption">Không mã hóa</string>
+    <string name="validating">Đang kiểm tra</string>
+    <string name="timestamp">Khởi tạo lúc: %1$s</string>
+    <string name="decompress">Tự động giải nén khi giải mã thành công?</string>
+    <string name="decompress_success">Giải nén thành công vào thư mục %1$s</string>
+    <string name="decompress_fail">Giải nén thất bại</string>
+    <string name="decompress_no_pwd">Không có mật khẩu để giải mã tệp</string>
+    <string name="try_again">Thử lại</string>
+    <string name="retry_decompress">Đang giải nén</string>
+    <string name="max_decompress_try">Đã hết lượt thử giải nén</string>
 </resources>

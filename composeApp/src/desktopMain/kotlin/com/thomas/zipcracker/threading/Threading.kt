@@ -9,6 +9,7 @@ import com.thomas.zipcracker.metadata.AppState
 import com.thomas.zipcracker.crypto.CrackingOptions
 import com.thomas.zipcracker.crypto.AESDecryptor
 import com.thomas.zipcracker.crypto.Decryptor
+import com.thomas.zipcracker.crypto.LargeFileDecryptor
 import com.thomas.zipcracker.metadata.LastPwdMetadata
 import com.thomas.zipcracker.metadata.OpMode
 import com.thomas.zipcracker.utility.UserPreferences
@@ -16,6 +17,7 @@ import com.thomas.zipcracker.metadata.ZIPStatus
 import com.thomas.zipcracker.crypto.ZipCryptoDecryptor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.getString
 import zipcracker.composeapp.generated.resources.Res
@@ -253,6 +255,8 @@ fun crack(
     result: ConcurrentLinkedQueue<String>,
     error: MutableState<String?>,
     state: MutableState<AppState>,
+    autoDecompression: Boolean,
+    decompressionState: MutableState<Boolean>,
     datastore: DataStore<UserPreferences>,
     lastPwdMetadata: LastPwdMetadata? = null
 ) {
@@ -262,6 +266,7 @@ fun crack(
     val decryptor: Decryptor<*> = when (options.encryption) {
         ZIPStatus.AES_ENCRYPTION -> AESDecryptor(options.file)
         ZIPStatus.STANDARD_ENCRYPTION -> ZipCryptoDecryptor(options.file)
+        ZIPStatus.LARGE_FILE_AES, ZIPStatus.LARGE_FILE_STANDARD -> LargeFileDecryptor(options.file)
         else -> {
             error.value = "Unknown encryption type"
             return
@@ -324,6 +329,7 @@ fun crack(
         )
     }
 
+    state.value = AppState.RUNNING
     threadPool.forEach {
         if (it !is Tracker) it.priority = Thread.MAX_PRIORITY
         it.start()
@@ -341,7 +347,19 @@ fun crack(
         threadPool.forEach(Thread::interrupt)
     }
     threadPool.forEach(Thread::join)
-    state.value = if (state.value == AppState.CANCELLED) state.value else AppState.COMPLETED
+    if (state.value != AppState.CANCELLED && autoDecompression
+        && options.targetDir.isNotBlank() && result.isNotEmpty()) {
+        scope.launch {
+            state.value = AppState.OPTIONAL_DECOMPRESSING
+            decompressionState.value = Decryptor.decompress(
+                options.file, options.targetDir, result.toHashSet()
+            )
+            delay(500)
+            state.value = AppState.COMPLETED
+        }
+    } else {
+        state.value = if (state.value == AppState.CANCELLED) AppState.CANCELLED else AppState.COMPLETED
+    }
     scope.launch {
         datastore.updateData { UserPreferences(uiMode = it.uiMode) }
     }

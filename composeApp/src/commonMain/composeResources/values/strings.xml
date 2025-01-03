@@ -1,8 +1,12 @@
 <resources>
     <string name="app_name">ZipCracker</string>
     <string name="select_title">Select ZIP file to decrypt</string>
-    <string name="select_prompt">File address</string>
-    <string name="select_button">Select file</string>
+    <string name="select_prompt_file">File address</string>
+    <string name="select_dir_title">Select folder to store decompressed file</string>
+    <string name="select_prompt_folder">Folder address</string>
+    <string name="dir_err">Directory missing</string>
+    <string name="select_button_file">Select file</string>
+    <string name="select_button_folder">Select folder</string>
     <string name="select_method">Select decrypting method</string>
     <string name="select_brute">Brute-force</string>
     <string name="select_dict">Dictionary</string>
@@ -18,7 +22,7 @@
     <string name="pwd_length">Maximum password length</string>
     <string name="dec">Decrease</string>
     <string name="inc">Increase</string>
-    <string name="closing">Closing app...</string>
+    <string name="closing">Closing app</string>
     <string name="warning_title">Decrypting in motion</string>
     <string name="warning_message">Are you sure you want to close the app?</string>
     <string name="minimize">Minimize the window</string>
@@ -61,4 +65,14 @@
     <string name="recovery_msg">Do you want to continue the previous session?</string>
     <string name="recovery_yes">Yes</string>
     <string name="recovery_no">No</string>
+    <string name="no_encryption">No encryption</string>
+    <string name="validating">Reading files</string>
+    <string name="timestamp">Generated at: %1$s</string>
+    <string name="decompress">Auto decompressing upon successful decryption?</string>
+    <string name="decompress_success">Decompressed file saved successfully to %1$s</string>
+    <string name="decompress_fail">Failed to save decompressed file</string>
+    <string name="decompress_no_pwd">No password available</string>
+    <string name="try_again">Try again</string>
+    <string name="retry_decompress">Decompressing</string>
+    <string name="max_decompress_try">Maximum decompression try reached</string>
 </resources>

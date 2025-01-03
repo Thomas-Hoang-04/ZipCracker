@@ -7,6 +7,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class CrackingOptions(
     val file: String,
+    val targetDir: String = "",
     val dictFiles: List<String> = emptyList(),
     val encryption: ZIPStatus,
     val maxThread: Int = Runtime.getRuntime().availableProcessors(),

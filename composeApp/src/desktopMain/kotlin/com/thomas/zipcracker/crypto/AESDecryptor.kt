@@ -4,7 +4,6 @@ import com.thomas.zipcracker.metadata.Compression
 import com.thomas.zipcracker.utility.DeflateUtil
 import com.thomas.zipcracker.utility.extractZip
 import com.thomas.zipcracker.utility.getByteArray
-import com.thomas.zipcracker.utility.isDirectory
 import com.thomas.zipcracker.utility.readFile
 import javax.crypto.Cipher
 import javax.crypto.Mac
@@ -13,7 +12,7 @@ import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.PBEKeySpec
 import javax.crypto.spec.SecretKeySpec
 
-class AESDecryptor(private val file: String): Decryptor<AESSample>() {
+class AESDecryptor(private val file: String): Decryptor<AESSample> {
     override val samples: List<AESSample> = extractSamples()
     override val decryptedStreams: MutableList<ByteArray> = mutableListOf()
 
@@ -48,11 +47,15 @@ class AESDecryptor(private val file: String): Decryptor<AESSample>() {
             passVerifyBytes, rawData, authCode, compression = compression)
     }
 
+    override fun getSample(): AESSample {
+        return samples.minByOrNull { it.data.length }!!
+    }
+
     override fun extractSamples(): List<AESSample> {
         val res = readFile(file).joinToString("") {
                 byte -> "%02x".format(byte)
         }
-        val samples = extractZip(res).filter { !isDirectory(it) }.map {
+        val samples = extractZip(res).filter { !Decryptor.isDirectory(it) }.map {
             val rawContent = it.getByteArray()
             val filenameSize = rawContent[23].toInt() shl 8 or rawContent[22].toInt()
             val extraFieldSize = rawContent[25].toInt() shl 8 or rawContent[24].toInt()
@@ -107,10 +110,9 @@ class AESDecryptor(private val file: String): Decryptor<AESSample>() {
         val keyFactory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1")
         val mac = Mac.getInstance("HmacSHA1")
 
-        val sample = samples[0]
+        val sample = getSample()
         val salt = sample.salt.getByteArray()
         val passVerifyBytes = sample.pwdVerifyValue.getByteArray()
-        val data = sample.data.getByteArray()
         val dataMAC = sample.authCode.getByteArray()
 
         val keySpec = PBEKeySpec(password.toCharArray(), salt, 1000, getMasterKeySize(sample.strength))
@@ -119,13 +121,14 @@ class AESDecryptor(private val file: String): Decryptor<AESSample>() {
         val aesKey = SecretKeySpec(masterKey.sliceArray(0..31), "AES")
 
         val hmacKey = masterKey.sliceArray(32..63)
-        mac.init(SecretKeySpec(hmacKey, "HmacSHA1"))
-        val calculatedMAC = mac.doFinal(data)
 
-        val check = calculatedMAC.sliceArray(0..9).contentEquals(dataMAC)
-                && passVerifyBytes.contentEquals(masterKey.sliceArray(64..65))
+        val check = passVerifyBytes.contentEquals(masterKey.sliceArray(64..65))
 
         if (check) {
+            val data = sample.data.getByteArray()
+            mac.init(SecretKeySpec(hmacKey, "HmacSHA1"))
+            val calculatedMAC = mac.doFinal(data)
+            if (!calculatedMAC.sliceArray(0..9).contentEquals(dataMAC)) return false
             val decrypted = decryptData(data, cipher, aesKey)
             if (sample.compression == Compression.DEFLATE){
                 try {

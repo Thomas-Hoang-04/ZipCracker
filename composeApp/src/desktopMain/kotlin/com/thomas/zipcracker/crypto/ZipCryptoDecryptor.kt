@@ -6,7 +6,7 @@ import java.util.zip.CRC32
 
 class ZipCryptoDecryptor(
     private val file: String
-): Decryptor<ZipCryptoSample>() {
+): Decryptor<ZipCryptoSample> {
     override val samples: List<ZipCryptoSample> = extractSamples()
     override val decryptedStreams: MutableList<ByteArray> = mutableListOf()
 
@@ -14,7 +14,7 @@ class ZipCryptoDecryptor(
         val res = readFile(file).joinToString("") {
                 byte -> "%02x".format(byte)
         }
-        val content = extractZip(res).filter { !isDirectory(it) }.map {
+        val content = extractZip(res).filter { !Decryptor.isDirectory(it) }.map {
             val rawContent = it.getByteArray()
             val compression = when (rawContent[4].toInt()) {
                 Compression.STORE.value -> Compression.STORE
@@ -40,9 +40,13 @@ class ZipCryptoDecryptor(
         return content
     }
 
+    override fun getSample(): ZipCryptoSample {
+        return samples.minByOrNull { it.data.length }!!
+    }
+
     override fun checkPassword(password: String): Boolean {
         val engine = ZipCryptoEngine()
-        val sample = samples[0]
+        val sample = getSample()
         val crcRef = sample.getCRCHighByte()
         val header = sample.header.getByteArray()
         val lastModDate = sample.getDateHighByte()
@@ -70,9 +74,7 @@ class ZipCryptoDecryptor(
                 val crc32 = CRC32()
                 crc32.update(decrypted)
                 return (crc32.value == sample.crc.toLong(16)).also {
-                    if (it) {
-                        decryptedStreams.add(decrypted)
-                    }
+                    if (it) { decryptedStreams.add(decrypted) }
                 }
             }
         } else {

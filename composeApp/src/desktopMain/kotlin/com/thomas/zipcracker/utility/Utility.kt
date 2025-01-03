@@ -1,10 +1,14 @@
 package com.thomas.zipcracker.utility
 
 import com.github.tkuenneth.nativeparameterstoreaccess.NativeParameterStoreAccess.IS_WINDOWS
+import com.thomas.zipcracker.crypto.Decryptor
 import com.thomas.zipcracker.metadata.Log
 import com.thomas.zipcracker.metadata.OpMode
 import com.thomas.zipcracker.metadata.ZIPStatus
 import com.thomas.zipcracker.ui.KeyValueText
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import net.lingala.zip4j.io.inputstream.ZipInputStream
 import org.jetbrains.compose.resources.getPluralString
 import org.jetbrains.compose.resources.getString
 import zipcracker.composeapp.generated.resources.Res
@@ -18,8 +22,10 @@ import zipcracker.composeapp.generated.resources.stat_file
 import zipcracker.composeapp.generated.resources.stat_method
 import zipcracker.composeapp.generated.resources.stat_thread
 import zipcracker.composeapp.generated.resources.statistics
+import zipcracker.composeapp.generated.resources.timestamp
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.FileInputStream
 import java.text.NumberFormat
 import java.time.LocalDate
 import java.time.ZoneId
@@ -28,18 +34,17 @@ import java.time.format.DateTimeFormatter
 import kotlin.experimental.and
 import kotlin.time.Duration.Companion.seconds
 
-fun String.getLittleEndian(): String = this.chunked(2).reversed().joinToString("")
+fun String.getLittleEndian(): String
+    = this.chunked(2).reversed().joinToString("")
 
-fun String.getByteArray(): ByteArray = this.chunked(2).map {
-        it.toInt(16).toByte()
-    }.toByteArray()
+fun String.getByteArray(): ByteArray
+    = this.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
 
 fun ByteArray.toRawString(delimiter: String = ""): String = this.joinToString(delimiter) { byte -> "%02x".format(byte) }
 
-fun countOccur(input: String, target: String): Int {
-    val regex = Regex(target)
-    return regex.findAll(input).count()
-}
+fun countOccur(input: String, target: String): Int
+    = Regex(target).findAll(input).count()
+
 
 fun formatNumber(n: Double): String {
     val formatted: (Double) -> String = { "%.2f".format(it) }
@@ -54,9 +59,7 @@ fun formatNumber(n: Double): String {
 fun extractZip(input: String): List<String> {
     val target = "504b0304"
     val ans = countOccur(input, target)
-    if (ans == 0) {
-        return emptyList()
-    }
+    if (ans == 0) { return emptyList() }
     if (ans == 1) {
         return listOf(input.substringAfter(target).substringBefore("504b0102"))
     }
@@ -72,32 +75,58 @@ fun extractZip(input: String): List<String> {
 
 fun readFile(filename: String): ByteArray = File(filename).inputStream().readBytes()
 
-fun isDirectory(input: String): Boolean {
-    val rawContent = input.getByteArray()
-    val filenameSize = rawContent[23].toInt() shl 8 or rawContent[22].toInt()
-    val filenameEnd = (26 + filenameSize) * 2
-    val filename = input.substring(26 * 2, filenameEnd)
-    val res = filename.takeLast(2) == "2f"
-    return res
-}
+suspend fun checkLargeFileEncryption(path: String): ZIPStatus
+    = withContext(Dispatchers.IO) {
+        val stream = ZipInputStream(FileInputStream(path))
+        var encryption: ZIPStatus = ZIPStatus.NO_ENCRYPTION
+        try {
+            var entry = stream.nextEntry
+            while (entry != null) {
+                if (entry.isDirectory) {
+                    entry = stream.nextEntry; continue
+                }
+                entry.isEncrypted
+            }
+        } catch (e: Exception) {
+            encryption = when {
+                e.stackTraceToString()
+                    .contains("StandardDecrypter") -> { ZIPStatus.LARGE_FILE_STANDARD }
 
-fun checkZIPDecryption(path: String): ZIPStatus {
-    val rawData = readFile(path)
-    return if (!rawData.copyOfRange(0, 4).contentEquals(byteArrayOf(0x50, 0x4b, 0x03, 0x04))) {
-        ZIPStatus.UNKNOWN_FORMAT
-    } else {
-        val samples = extractZip(rawData.toRawString())
-        for (sample in samples) {
-            if (isDirectory(sample)) continue
-            val rawSample = sample.getByteArray()
-            if (rawSample[2] and 0x1 == 0x1.toByte()) {
-                return if (rawSample[4] == 0x63.toByte()) ZIPStatus.AES_ENCRYPTION
-                else ZIPStatus.STANDARD_ENCRYPTION
+                e.stackTraceToString()
+                    .contains("AESDecrypter") -> { ZIPStatus.LARGE_FILE_AES }
+
+                else -> { encryption }
             }
         }
-        ZIPStatus.NO_ENCRYPTION
+        stream.close()
+        encryption
     }
-}
+
+
+suspend fun checkZIPEncryption(path: String): ZIPStatus
+    = withContext(Dispatchers.IO) {
+        var encryption = ZIPStatus.NO_ENCRYPTION
+        if (File(path).length() >= 1e8) {
+            encryption = checkLargeFileEncryption(path)
+            return@withContext encryption
+        }
+        val rawData = readFile(path)
+        if (!rawData.copyOfRange(0, 4).contentEquals(byteArrayOf(0x50, 0x4b, 0x03, 0x04))) {
+            encryption = ZIPStatus.UNKNOWN_FORMAT
+        } else {
+            val samples = extractZip(rawData.toRawString())
+            for (sample in samples) {
+                if (Decryptor.isDirectory(sample)) continue
+                val rawSample = sample.getByteArray()
+                if (rawSample[2] and 0x1 == 0x1.toByte()) {
+                    encryption = if (rawSample[4] == 0x63.toByte()) ZIPStatus.AES_ENCRYPTION
+                    else ZIPStatus.STANDARD_ENCRYPTION
+                }
+            }
+        }
+        encryption
+    }
+
 
 fun getSaveDirectory(): String = when {
     IS_WINDOWS -> "C:\\Users\\${System.getProperty("user.name")}\\Documents"
@@ -136,11 +165,11 @@ suspend fun writeLogFile(
     val time = current.toLocalTime().toSecondOfDay()
     val storeTime = if (time < 3600) "0h ${time.seconds}"
         else time.seconds.toString()
-    val timestamp = "${storeDate}, $storeTime"
+    val timestamp = getString(Res.string.timestamp, "${storeDate}, $storeTime")
 
     ByteArrayOutputStream().use { bos ->
         bos.write("$title\n".encodeToByteArray())
-        bos.write("Generated at: $timestamp\n".encodeToByteArray())
+        bos.write("$timestamp\n".encodeToByteArray())
         bos.write("$fileTitle${metadata.file}\n".encodeToByteArray())
         bos.write("$encryptionType\n".encodeToByteArray())
         bos.write("$methodTitle$method\n".encodeToByteArray())

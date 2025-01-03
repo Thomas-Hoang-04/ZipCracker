@@ -1,5 +1,6 @@
 package com.thomas.zipcracker.ui
 
+import androidx.compose.desktop.ui.tooling.preview.Preview
 import androidx.compose.runtime.Composable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -17,6 +18,7 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.*
@@ -26,6 +28,7 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -48,6 +51,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.thomas.zipcracker.crypto.Decryptor
 import com.thomas.zipcracker.metadata.AppState
 import com.thomas.zipcracker.metadata.Log
 import com.thomas.zipcracker.metadata.OpMode
@@ -59,8 +63,10 @@ import com.thomas.zipcracker.utility.writeLogFile
 import io.github.vinceglb.filekit.compose.PickerResultLauncher
 import io.github.vinceglb.filekit.compose.rememberFileSaverLauncher
 import io.github.vinceglb.filekit.core.FileKitPlatformSettings
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import zipcracker.composeapp.generated.resources.Res
@@ -68,18 +74,25 @@ import zipcracker.composeapp.generated.resources.avg_speed
 import zipcracker.composeapp.generated.resources.closing
 import zipcracker.composeapp.generated.resources.`continue`
 import zipcracker.composeapp.generated.resources.dec
+import zipcracker.composeapp.generated.resources.decompress_fail
+import zipcracker.composeapp.generated.resources.decompress_no_pwd
+import zipcracker.composeapp.generated.resources.decompress_success
 import zipcracker.composeapp.generated.resources.file_fail
 import zipcracker.composeapp.generated.resources.file_success
 import zipcracker.composeapp.generated.resources.inc
+import zipcracker.composeapp.generated.resources.max_decompress_try
 import zipcracker.composeapp.generated.resources.max_speed
+import zipcracker.composeapp.generated.resources.no_encryption
 import zipcracker.composeapp.generated.resources.pwd_consumed
 import zipcracker.composeapp.generated.resources.pwd_entered
 import zipcracker.composeapp.generated.resources.pwd_msg
 import zipcracker.composeapp.generated.resources.pwd_none
+import zipcracker.composeapp.generated.resources.retry_decompress
 import zipcracker.composeapp.generated.resources.save_file
 import zipcracker.composeapp.generated.resources.select_benchmark
 import zipcracker.composeapp.generated.resources.select_brute
-import zipcracker.composeapp.generated.resources.select_button
+import zipcracker.composeapp.generated.resources.select_button_file
+import zipcracker.composeapp.generated.resources.select_button_folder
 import zipcracker.composeapp.generated.resources.select_dict
 import zipcracker.composeapp.generated.resources.speed_low
 import zipcracker.composeapp.generated.resources.stat_dict_progress
@@ -399,6 +412,8 @@ fun RowWithIncrementer(
 @Composable
 fun FileInput(
     filename: String,
+    ratio: Float = 0.75f,
+    directory: Boolean = false,
     launcher: PickerResultLauncher,
     state: MutableState<AppState>,
     label: @Composable () -> Unit,
@@ -427,7 +442,7 @@ fun FileInput(
                 disabledLabelColor = MaterialTheme.colorScheme.onSecondary,
             ),
             modifier = Modifier
-                .weight(0.8f)
+                .weight(ratio)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
@@ -447,13 +462,42 @@ fun FileInput(
             ),
             onClick = { launcher.launch() },
             modifier = Modifier
-                .weight(0.2f)
+                .weight(1 - ratio)
         ) {
             Text(
-                stringResource(Res.string.select_button),
+                if (directory) stringResource(Res.string.select_button_folder)
+                else stringResource(Res.string.select_button_file),
                 fontSize = 15.sp,
             )
         }
+    }
+}
+
+@Composable
+fun Tracker(
+    title: String
+) {
+    Column(
+        verticalArrangement = Arrangement.Center,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp)
+    ) {
+        Text(
+            title,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.contentColorFor(MaterialTheme.colorScheme.background),
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        LinearProgressIndicator(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(6.dp),
+            color = IndicatorColor,
+            trackColor = Color.LightGray,
+            strokeCap = StrokeCap.Round,
+            gapSize = 0.dp
+        )
     }
 }
 
@@ -610,25 +654,25 @@ fun ResultTitle(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         modifier = Modifier.padding(horizontal = 10.dp)
     ) {
-            Icon(
-                imageVector = if (state.value == AppState.COMPLETED) Icons.Default.CheckCircle
-                    else Icons.Default.Cancel,
-                contentDescription = "Result state",
-                tint = if (state.value == AppState.COMPLETED) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.error,
-                modifier = Modifier.size(26.dp)
-            )
-            Text(
-                stringResource(
-                    if (state.value == AppState.COMPLETED) Res.string.state_success
-                    else Res.string.state_fail
-                ),
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Medium,
-                color = if (state.value == AppState.COMPLETED) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.error
-            )
-        }
+        Icon(
+            imageVector = if (state.value == AppState.COMPLETED) Icons.Default.CheckCircle
+                else Icons.Default.Cancel,
+            contentDescription = "Result state",
+            tint = if (state.value == AppState.COMPLETED) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.error,
+            modifier = Modifier.size(26.dp)
+        )
+        Text(
+            stringResource(
+                if (state.value == AppState.COMPLETED) Res.string.state_success
+                else Res.string.state_fail
+            ),
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Medium,
+            color = if (state.value == AppState.COMPLETED) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.error
+        )
+    }
 }
 
 data class KeyValueText(
@@ -662,17 +706,22 @@ fun ResultDetails(
     pwdSet: HashSet<String>,
     state: MutableState<AppState>,
     metadata: Log,
+    autoDecompress: Boolean,
+    decompression: MutableState<Boolean>,
 ) {
     val scope = rememberCoroutineScope()
     val size = pwdSet.size
     val pwd = remember { pwdSet.joinToString() }
+    var decompressionTry by remember { mutableIntStateOf(3) }
+    var reDecompressing by remember { mutableStateOf(false) }
 
     val fileTitle = stringResource(Res.string.stat_file)
 
+    val noEncryption = stringResource(Res.string.no_encryption)
     val encryptionMode = when (metadata.encryption) {
-        ZIPStatus.AES_ENCRYPTION -> "AES"
-        ZIPStatus.STANDARD_ENCRYPTION -> "ZIP 2.0 (ZipCrypto)"
-        else -> "Unknown encryption"
+        ZIPStatus.AES_ENCRYPTION, ZIPStatus.LARGE_FILE_AES -> "AES"
+        ZIPStatus.STANDARD_ENCRYPTION, ZIPStatus.LARGE_FILE_STANDARD -> "ZIP 2.0 (ZipCrypto)"
+        else -> noEncryption
     }
     val encryptionTitle = stringResource(Res.string.stat_encryption, encryptionMode)
 
@@ -705,7 +754,7 @@ fun ResultDetails(
             KeyValueText(modeTitle, method),
             KeyValueText(threadTitle, metadata.thread.toString()),
             KeyValueText(timeStat, Watcher.timer.seconds.toString()),
-            KeyValueText(avgSpeed, "$speed pwd/s"),
+            KeyValueText(avgSpeed, "${formatNumber(speed.toDouble())} pwd/s"),
             KeyValueText(
                 maxSpeed,
                 "${formatNumber(
@@ -758,14 +807,29 @@ fun ResultDetails(
             fontStyle = FontStyle.Italic,
             color = MaterialTheme.colorScheme.contentColorFor(MaterialTheme.colorScheme.background),
         )
-        Text(
-            if (size == 0) stringResource(Res.string.pwd_none)
-            else pluralStringResource(Res.plurals.pwd_msg, size, pwd),
-            fontSize = 18.sp,
-            fontWeight = FontWeight.SemiBold,
-            fontStyle = FontStyle.Italic,
-            color = MaterialTheme.colorScheme.contentColorFor(MaterialTheme.colorScheme.background),
-        )
+        if (metadata.mode != OpMode.BENCHMARK) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    imageVector = if (size == 0) Icons.Default.Cancel
+                    else Icons.Default.CheckCircle,
+                    contentDescription = "Password state",
+                    tint = if (size == 0) MaterialTheme.colorScheme.error
+                    else MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    if (size == 0) stringResource(Res.string.pwd_none)
+                    else pluralStringResource(Res.plurals.pwd_msg, size, pwd),
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    fontStyle = FontStyle.Italic,
+                    color = MaterialTheme.colorScheme.contentColorFor(MaterialTheme.colorScheme.background),
+                )
+            }
+        }
         LazyVerticalGrid(
             columns = GridCells.Fixed(2),
             verticalArrangement = Arrangement.spacedBy(20.dp),
@@ -777,7 +841,93 @@ fun ResultDetails(
                 KeyValueText(item)
             }
         }
-        Spacer(modifier = Modifier.height(0.dp))
+        if (autoDecompress) {
+            if (!reDecompressing) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.padding(vertical = 8.dp)
+                ) {
+                    Icon(
+                        imageVector = if (decompression.value) Icons.Default.CheckCircle
+                        else Icons.Default.Cancel,
+                        contentDescription = "Decompression state",
+                        tint = if (decompression.value) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Text(
+                        if (decompression.value) stringResource(Res.string.decompress_success, metadata.dir)
+                        else {
+                            if (decompressionTry <= 0) stringResource(Res.string.max_decompress_try)
+                            else if (pwdSet.isEmpty()) stringResource(Res.string.decompress_no_pwd)
+                            else stringResource(Res.string.decompress_fail)
+                        },
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = if (decompression.value) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.error
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    if (decompressionTry > 0 && !decompression.value && pwdSet.isNotEmpty()) {
+                        Button(
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = Color.White,
+                                disabledContentColor = MaterialTheme.colorScheme.contentColorFor(
+                                    MaterialTheme.colorScheme.background),
+                            ),
+                            onClick = {
+                                scope.launch {
+                                    withContext(Dispatchers.IO) {
+                                        decompressionTry--
+                                        reDecompressing = true
+                                        decompression.value = Decryptor.decompress(
+                                            metadata.file, metadata.dir, pwdSet
+                                        )
+                                        delay(500)
+                                        reDecompressing = false
+                                    }
+                                }
+                            }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Refresh,
+                                contentDescription = "Save statistics",
+                                modifier = Modifier.size(20.dp).align(Alignment.CenterVertically),
+                            )
+                            Spacer(modifier = Modifier.width(5.dp))
+                            Text(
+                                stringResource(Res.string.save_file),
+                                fontSize = 16.sp,
+                                modifier = Modifier.align(Alignment.CenterVertically),
+                            )
+                        }
+                    }
+                }
+            } else {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth(0.8f).padding(vertical = 8.dp)
+                ) {
+                    Text(
+                        stringResource(Res.string.retry_decompress),
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.contentColorFor(MaterialTheme.colorScheme.background),
+                    )
+                    LinearProgressIndicator(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(6.dp),
+                        color = IndicatorColor,
+                        trackColor = Color.LightGray,
+                        strokeCap = StrokeCap.Round,
+                        gapSize = 0.dp
+                    )
+                }
+            }
+        }
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -788,6 +938,7 @@ fun ResultDetails(
             ) {
                 Button(
                     colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = Color.White,
                         disabledContentColor = MaterialTheme.colorScheme.contentColorFor(
                             MaterialTheme.colorScheme.background),
@@ -865,4 +1016,22 @@ fun ResultDetails(
             }
         }
     }
+}
+
+@Composable
+@Preview
+fun ResultDetailsPreview() {
+    val state = remember { mutableStateOf(AppState.COMPLETED) }
+    val metadata = Log(
+        file = "test.zip",
+        dir = "test",
+        encryption = ZIPStatus.AES_ENCRYPTION,
+        mode = OpMode.BRUTE,
+        thread = 4,
+    )
+    val pwdSet = hashSetOf("password1", "password2", "password3")
+    val autoDecompress = true
+    val decompression = remember { mutableStateOf(true) }
+
+    ResultDetails(null, pwdSet, state, metadata, autoDecompress, decompression)
 }

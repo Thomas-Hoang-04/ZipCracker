@@ -1,5 +1,6 @@
 package com.thomas.zipcracker
 
+import androidx.compose.desktop.ui.tooling.preview.Preview
 import androidx.compose.foundation.Image
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -23,6 +24,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.datastore.core.DataStore
+import androidx.datastore.core.DataStoreFactory
 import com.thomas.zipcracker.metadata.AppState
 import com.thomas.zipcracker.crypto.CrackingOptions
 import com.thomas.zipcracker.metadata.LastPwdMetadata
@@ -37,9 +39,13 @@ import com.thomas.zipcracker.threading.Watcher
 import com.thomas.zipcracker.metadata.ZIPStatus
 import com.thomas.zipcracker.threading.crack
 import com.thomas.zipcracker.ui.ConfirmDialog
+import com.thomas.zipcracker.ui.ErrorText
 import com.thomas.zipcracker.ui.ResultDetails
 import com.thomas.zipcracker.ui.ResultTitle
-import com.thomas.zipcracker.utility.checkZIPDecryption
+import com.thomas.zipcracker.ui.Tracker
+import com.thomas.zipcracker.utility.PreferencesSerializer
+import com.thomas.zipcracker.utility.checkZIPEncryption
+import io.github.vinceglb.filekit.compose.rememberDirectoryPickerLauncher
 import io.github.vinceglb.filekit.compose.rememberFilePickerLauncher
 import io.github.vinceglb.filekit.core.FileKitPlatformSettings
 import io.github.vinceglb.filekit.core.PickerMode
@@ -90,7 +96,16 @@ fun App(
     val interactionSource = remember { MutableInteractionSource() }
     val scrollState = rememberScrollState()
 
+    var recovery by remember { mutableStateOf(false) }
+    var decompress by remember { mutableStateOf(false) }
+    val decompressionState = remember { mutableStateOf(false) }
+    var dir by remember { mutableStateOf<File?>(null) }
+    val dirDisplay by derivedStateOf {
+        dir?.path ?: ""
+    }
+
     val refFileError = stringResource(Res.string.file_error)
+    val refDirError = stringResource(Res.string.dir_err)
     val refDictError = stringResource(Res.string.dict_error)
     val refPwdOptionsError = stringResource(Res.string.pwd_error)
     val formatError = stringResource(Res.string.format_error)
@@ -99,57 +114,57 @@ fun App(
     val fileError = remember { mutableStateOf<String?>(null) }
     var pwdOptionsError by remember { mutableStateOf<String?>(null) }
     var dictError by remember { mutableStateOf<String?>(null) }
+    var dirError by remember { mutableStateOf<String?>(null) }
 
     val showResult by derivedStateOf {
         state.value == AppState.COMPLETED || state.value == AppState.CANCELLED
     }
 
-    var recovery by remember { mutableStateOf(false) }
-
     val scope = rememberCoroutineScope()
-    val validated: () -> Boolean = {
-        fileError.value = when {
-            file == null -> refFileError
-            else -> {
-                when (val status = checkZIPDecryption(file!!.path)) {
-                    ZIPStatus.UNKNOWN_FORMAT -> formatError
-                    ZIPStatus.NO_ENCRYPTION -> encryptionError
-                    else -> {
-                        encryption = status
-                        null
+    val validated: suspend () -> Boolean = {
+        withContext(Dispatchers.Default) {
+            pwdOptionsError = if (pwdOptions.value == 0) refPwdOptionsError else null
+            dictError = if (opMode.value == OpMode.DICTIONARY && dictionaryFile.isEmpty()) refDictError else null
+            dirError = if (decompress && dir == null) refDirError else null
+            fileError.value = when {
+                file == null -> refFileError
+                else -> {
+                    when (val status = checkZIPEncryption(file!!.path)) {
+                        ZIPStatus.UNKNOWN_FORMAT -> formatError
+                        ZIPStatus.NO_ENCRYPTION -> encryptionError
+                        else -> { encryption = status; null }
                     }
                 }
             }
+            fileError.value == null && pwdOptionsError == null
+                    && dictError == null && dirError == null
         }
-        pwdOptionsError = if (pwdOptions.value == 0) { refPwdOptionsError }
-            else { null }
-        dictError = if (opMode.value == OpMode.DICTIONARY && dictionaryFile.isEmpty()) {
-            refDictError
-        } else { null }
-        fileError.value == null && pwdOptionsError == null && dictError == null
     }
 
     val result = remember { ConcurrentLinkedQueue<String>() }
     val activate: suspend (CrackingOptions, Boolean) -> Unit = { opt, rec ->
-        Watcher.tracker = true
-        Watcher.pause = false
-        Watcher.stop = false
-        delay(100)
-        state.value = AppState.RUNNING
-        result.clear()
-        var lastPwdMetadata: LastPwdMetadata? = null
-        if (rec) {
-            lastPwdMetadata = datastore.data.first().lastPwdInfo
+        withContext(Dispatchers.Default) {
+            Watcher.tracker = true
+            Watcher.pause = false
+            Watcher.stop = false
+            delay(250)
+            result.clear()
+            var lastPwdMetadata: LastPwdMetadata? = null
+            if (rec) {
+                lastPwdMetadata = datastore.data.first().lastPwdInfo
+            }
+            crack(
+                threadPool = pool,
+                options = opt,
+                result = result,
+                error = fileError,
+                state = state,
+                autoDecompression = decompress,
+                decompressionState = decompressionState,
+                datastore = datastore,
+                lastPwdMetadata = lastPwdMetadata
+            )
         }
-        crack(
-            threadPool = pool,
-            options = opt,
-            result = result,
-            error = fileError,
-            state = state,
-            datastore = datastore,
-            lastPwdMetadata = lastPwdMetadata
-        )
     }
 
 
@@ -159,9 +174,7 @@ fun App(
         platformSettings = FileKitPlatformSettings(
             parentWindow = parentWindow
         )
-    ) { f ->
-        file = f?.file
-    }
+    ) { f -> file = f?.file }
 
     val dictLauncher = rememberFilePickerLauncher(
         mode = PickerMode.Multiple(null),
@@ -174,6 +187,13 @@ fun App(
         fs?.forEach { dictionaryFile.add(it.file) }
         dictionaryDisplay = dictionaryFile.joinToString("; ") { it.path }
     }
+
+    val dirLauncher = rememberDirectoryPickerLauncher(
+        title = stringResource(Res.string.select_dir_title),
+        platformSettings = FileKitPlatformSettings(
+            parentWindow = parentWindow
+        )
+    ) { f -> dir = f?.file }
 
     LaunchedEffect(state.value) {
         if (state.value == AppState.CANCELLED || state.value == AppState.COMPLETED) {
@@ -274,6 +294,8 @@ fun App(
                 ),
                 onClick = {
                     scope.launch {
+                        state.value = AppState.VALIDATING
+                        delay(250)
                         if (validated()) {
                             val options = CrackingOptions(
                                 file = file?.absolutePath ?: return@launch,
@@ -284,7 +306,8 @@ fun App(
                                 maxPwdLength = if (opMode.value == OpMode.DICTIONARY) -1
                                 else pwdLength.value,
                                 pwdOptions = if (opMode.value == OpMode.DICTIONARY) -1
-                                else pwdOptions.value
+                                else pwdOptions.value,
+                                targetDir = dir?.absolutePath ?: ""
                             )
                             dictionaryFile.clear()
                             datastore.updateData {
@@ -295,6 +318,8 @@ fun App(
                             withContext(Dispatchers.Default) {
                                 activate(options, false)
                             }
+                        } else {
+                            state.value = AppState.NOT_INITIATED
                         }
                     }
                 },
@@ -320,8 +345,9 @@ fun App(
                 }
             }
             Spacer(modifier = Modifier.width(4.dp))
-            if (state.value == AppState.RUNNING) {
-                ProgressTracker(
+            when (state.value) {
+                AppState.VALIDATING -> Tracker(stringResource(Res.string.validating))
+                AppState.RUNNING -> ProgressTracker(
                     state = state,
                     opMode = opMode.value,
                     onStop = {
@@ -333,13 +359,13 @@ fun App(
                         }
                     }
                 )
+                AppState.OPTIONAL_DECOMPRESSING -> Tracker(stringResource(Res.string.retry_decompress))
+                AppState.COMPLETED, AppState.CANCELLED -> {
+                    Spacer(modifier = Modifier.width(12.dp))
+                    ResultTitle(state)
+                }
+                else -> Spacer(modifier = Modifier.width(0.dp))
             }
-            else if (state.value == AppState.COMPLETED
-                || state.value == AppState.CANCELLED) {
-                Spacer(modifier = Modifier.width(12.dp))
-                ResultTitle(state)
-            }
-
         }
         Spacer(modifier = Modifier.height(28.dp))
         HorizontalDivider(
@@ -353,8 +379,11 @@ fun App(
                 parentWindow = parentWindow,
                 pwdSet = result.toHashSet(),
                 state = state,
+                autoDecompress = decompress,
+                decompression = decompressionState,
                 metadata = Log(
-                    file = (file ?: return@Column).absolutePath,
+                    file = fileDisplay,
+                    dir = dirDisplay,
                     encryption = encryption,
                     mode = opMode.value,
                     thread = threadCount.value
@@ -371,9 +400,58 @@ fun App(
                 launcher = zipLauncher,
                 state = state,
             ) {
-                Text(stringResource(Res.string.select_prompt))
+                Text(stringResource(Res.string.select_prompt_file))
             }
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(
+                        enabled = (state.value == AppState.NOT_INITIATED) && !isBenchmark,
+                        checked = decompress,
+                        onCheckedChange = {
+                            decompress = it
+                            if (!it) { dir = null; dirError = null }
+                        },
+                        colors = CheckboxDefaults.colors(
+                            checkedColor = MaterialTheme.colorScheme.primary,
+                            uncheckedColor = MaterialTheme.colorScheme.primary,
+                            checkmarkColor = Color.White,
+                            disabledUncheckedColor = Color.Gray,
+                            disabledCheckedColor = Color.Gray,
+                        ),
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = stringResource(Res.string.decompress),
+                        color = MaterialTheme.colorScheme
+                            .contentColorFor(MaterialTheme.colorScheme.background),
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+                dirError?.let { ErrorText(error = it) }
+            }
+            if (decompress) {
+                FileInput(
+                    filename = dirDisplay,
+                    launcher = dirLauncher,
+                    directory = true,
+                    state = state,
+                ) {
+                    Text(stringResource(Res.string.select_prompt_folder))
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+            else {
+                Spacer(modifier = Modifier.height(20.dp))
+            }
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -560,4 +638,11 @@ fun App(
     }
 }
 
-
+@Composable
+@Preview
+fun AppPreview() {
+    App(parentWindow = null, state = mutableStateOf(AppState.NOT_INITIATED), pool = mutableListOf(), datastore = DataStoreFactory.create(
+        serializer = PreferencesSerializer(),
+        produceFile = { File("preferences.json") }
+    ))
+}

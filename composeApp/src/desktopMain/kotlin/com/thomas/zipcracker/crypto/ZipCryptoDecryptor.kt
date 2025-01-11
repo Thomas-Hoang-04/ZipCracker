@@ -1,11 +1,13 @@
 package com.thomas.zipcracker.crypto
 import com.thomas.zipcracker.metadata.Compression
+import com.thomas.zipcracker.metadata.OpMode
 import com.thomas.zipcracker.utility.DeflateUtil
 import com.thomas.zipcracker.utility.*
 import java.util.zip.CRC32
 
 class ZipCryptoDecryptor(
-    private val file: String
+    private val file: String,
+    private val mode: OpMode
 ): Decryptor<ZipCryptoSample> {
     override val samples: List<ZipCryptoSample> = extractSamples()
     override val decryptedStreams: MutableList<ByteArray> = mutableListOf()
@@ -37,46 +39,54 @@ class ZipCryptoDecryptor(
             ZipCryptoSample(crc, encryptedHeader, data, lastModTime, compression)
         }
 
-        return content
+        return content.sortedBy { it.data.length }
     }
 
-    override fun getSample(): ZipCryptoSample {
-        return samples.minByOrNull { it.data.length }!!
+    private fun verifyData(sample: ZipCryptoSample, engine: ZipCryptoEngine): Boolean {
+        val decrypted = engine.dataDecrypt(sample.data.getByteArray())
+        if (sample.compression == Compression.DEFLATE) {
+            try {
+                val decompressed = DeflateUtil.decompress(decrypted)
+                val crc32 = CRC32()
+                crc32.update(decompressed)
+                return (crc32.value == sample.crc.toLong(16)).also {
+                    if (it) { decryptedStreams.add(decompressed) }
+                }
+            } catch (e: Exception) {
+                return false
+            }
+        } else {
+            val crc32 = CRC32()
+            crc32.update(decrypted)
+            return (crc32.value == sample.crc.toLong(16)).also {
+                if (it) { decryptedStreams.add(decrypted) }
+            }
+        }
     }
 
     override fun checkPassword(password: String): Boolean {
         val engine = ZipCryptoEngine()
-        val sample = getSample()
-        val crcRef = sample.getCRCHighByte()
-        val header = sample.header.getByteArray()
-        val lastModDate = sample.getDateHighByte()
+        val masterLock = BooleanArray(samples.size.coerceAtMost(3))
+        val testedSamples = samples.take(masterLock.size)
+        for (i in masterLock.indices) {
+            password.forEach { engine.updateKeys(it) }
+            val sample = testedSamples[i]
+            val crcRef = sample.getCRCHighByte()
+            val header = sample.header.getByteArray()
+            val lastModDate = sample.getDateHighByte()
 
-        password.forEach { engine.updateKeys(it) }
-        val decryptedHeader = engine.dataDecrypt(header)
-        val checkByte = decryptedHeader.last()
-        if (checkByte == crcRef || checkByte == lastModDate) {
-            val decrypted = engine.dataDecrypt(sample.data.getByteArray())
+            val decryptedHeader = engine.dataDecrypt(header)
+            val checkByte = decryptedHeader.last()
+            masterLock[i] = (checkByte == crcRef || checkByte == lastModDate)
             engine.resetKeys()
-            if (sample.compression == Compression.DEFLATE) {
-                try {
-                    val decompressed = DeflateUtil.decompress(decrypted)
-                    val crc32 = CRC32()
-                    crc32.update(decompressed)
-                    return (crc32.value == sample.crc.toLong(16)).also {
-                        if (it) {
-                            decryptedStreams.add(decompressed)
-                        }
-                    }
-                } catch (e: Exception) {
-                    return false
-                }
-            } else {
-                val crc32 = CRC32()
-                crc32.update(decrypted)
-                return (crc32.value == sample.crc.toLong(16)).also {
-                    if (it) { decryptedStreams.add(decrypted) }
-                }
+        }
+        if (masterLock.all { it } && mode != OpMode.BENCHMARK) {
+            for (i in testedSamples.indices) {
+                password.forEach { engine.updateKeys(it) }
+                masterLock[i] = verifyData(testedSamples[i], engine)
+                engine.resetKeys()
             }
+            return masterLock.all { it }
         } else {
             engine.resetKeys()
             return false

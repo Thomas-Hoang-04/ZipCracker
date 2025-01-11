@@ -9,8 +9,6 @@ interface Decryptor<T> {
     val samples: List<T>
     val decryptedStreams: MutableList<ByteArray>
 
-    fun getSample(): T
-
     fun checkPassword(password: String): Boolean
 
     fun extractSamples(): List<T>

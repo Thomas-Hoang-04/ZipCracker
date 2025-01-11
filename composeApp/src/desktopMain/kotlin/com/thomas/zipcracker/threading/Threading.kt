@@ -253,8 +253,8 @@ fun crack(
     val mask = options.threadMask
     val worker = mask.countOneBits()
     val decryptor: Decryptor<*> = when (options.encryption) {
-        ZIPStatus.AES_ENCRYPTION -> AESDecryptor(options.file)
-        ZIPStatus.STANDARD_ENCRYPTION -> ZipCryptoDecryptor(options.file)
+        ZIPStatus.AES_ENCRYPTION -> AESDecryptor(options.file, mode = options.opMode)
+        ZIPStatus.STANDARD_ENCRYPTION -> ZipCryptoDecryptor(options.file, mode = options.opMode)
         ZIPStatus.LARGE_FILE_AES, ZIPStatus.LARGE_FILE_STANDARD -> LargeFileDecryptor(options.file)
         else -> {
             error.value = "Unknown encryption type"

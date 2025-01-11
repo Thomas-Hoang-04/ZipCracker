@@ -8,7 +8,7 @@ class LargeFileDecryptor(private val file: String): Decryptor<ZipInputStream> {
     override val decryptedStreams: MutableList<ByteArray> = mutableListOf()
 
     override fun checkPassword(password: String): Boolean {
-        val stream = getSample()
+        val stream = ZipInputStream(FileInputStream(file))
         stream.setPassword(password.toCharArray())
         try {
             var successCount = 0
@@ -30,9 +30,4 @@ class LargeFileDecryptor(private val file: String): Decryptor<ZipInputStream> {
     }
 
     override fun extractSamples(): List<ZipInputStream> = emptyList()
-
-    override fun getSample(): ZipInputStream {
-        val stream = FileInputStream(file)
-        return ZipInputStream(stream)
-    }
 }

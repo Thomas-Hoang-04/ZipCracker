@@ -53,7 +53,7 @@ compose.desktop {
 
             targetFormats(TargetFormat.Msi, TargetFormat.Deb)
             packageName = "ZipCracker"
-            packageVersion = "1.2.1"
+            packageVersion = "1.3.0"
             description = "ZipCracker"
             copyright = "© 2024 Thomas. All rights reserved"
             vendor = "Thomas"

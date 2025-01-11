@@ -1,6 +1,7 @@
 package com.thomas.zipcracker.crypto
 
 import com.thomas.zipcracker.metadata.Compression
+import com.thomas.zipcracker.metadata.OpMode
 import com.thomas.zipcracker.utility.DeflateUtil
 import com.thomas.zipcracker.utility.extractZip
 import com.thomas.zipcracker.utility.getByteArray
@@ -12,7 +13,10 @@ import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.PBEKeySpec
 import javax.crypto.spec.SecretKeySpec
 
-class AESDecryptor(private val file: String): Decryptor<AESSample> {
+class AESDecryptor(
+    private val file: String,
+    private val mode: OpMode
+): Decryptor<AESSample> {
     override val samples: List<AESSample> = extractSamples()
     override val decryptedStreams: MutableList<ByteArray> = mutableListOf()
 
@@ -47,10 +51,6 @@ class AESDecryptor(private val file: String): Decryptor<AESSample> {
             passVerifyBytes, rawData, authCode, compression = compression)
     }
 
-    override fun getSample(): AESSample {
-        return samples.minByOrNull { it.data.length }!!
-    }
-
     override fun extractSamples(): List<AESSample> {
         val res = readFile(file).joinToString("") {
                 byte -> "%02x".format(byte)
@@ -72,7 +72,7 @@ class AESDecryptor(private val file: String): Decryptor<AESSample> {
             sample.copy(crc = crc)
         }
 
-        return samples
+        return samples.sortedBy { it.data.length }
     }
 
     private fun updateIV(iv: ByteArray, nonce: Int) {
@@ -110,7 +110,7 @@ class AESDecryptor(private val file: String): Decryptor<AESSample> {
         val keyFactory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1")
         val mac = Mac.getInstance("HmacSHA1")
 
-        val sample = getSample()
+        val sample = samples.first()
         val salt = sample.salt.getByteArray()
         val passVerifyBytes = sample.pwdVerifyValue.getByteArray()
         val dataMAC = sample.authCode.getByteArray()
@@ -124,7 +124,7 @@ class AESDecryptor(private val file: String): Decryptor<AESSample> {
 
         val check = passVerifyBytes.contentEquals(masterKey.sliceArray(64..65))
 
-        if (check) {
+        if (check && mode != OpMode.BENCHMARK) {
             val data = sample.data.getByteArray()
             mac.init(SecretKeySpec(hmacKey, "HmacSHA1"))
             val calculatedMAC = mac.doFinal(data)

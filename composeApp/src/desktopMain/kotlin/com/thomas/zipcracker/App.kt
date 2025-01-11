@@ -120,6 +120,10 @@ fun App(
         state.value == AppState.COMPLETED || state.value == AppState.CANCELLED
     }
 
+    val pwdMaxLength by derivedStateOf {
+        if (opMode.value == OpMode.BENCHMARK) 6 else 8
+    }
+
     val scope = rememberCoroutineScope()
     val validated: suspend () -> Boolean = {
         withContext(Dispatchers.Default) {
@@ -399,44 +403,44 @@ fun App(
                 filename = fileDisplay,
                 launcher = zipLauncher,
                 state = state,
-            ) {
-                Text(stringResource(Res.string.select_prompt_file))
-            }
-            Spacer(modifier = Modifier.height(12.dp))
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(
-                        enabled = (state.value == AppState.NOT_INITIATED) && !isBenchmark,
-                        checked = decompress,
-                        onCheckedChange = {
-                            decompress = it
-                            if (!it) { dir = null; dirError = null }
-                        },
-                        colors = CheckboxDefaults.colors(
-                            checkedColor = MaterialTheme.colorScheme.primary,
-                            uncheckedColor = MaterialTheme.colorScheme.primary,
-                            checkmarkColor = Color.White,
-                            disabledUncheckedColor = Color.Gray,
-                            disabledCheckedColor = Color.Gray,
-                        ),
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text(
-                        text = stringResource(Res.string.decompress),
-                        color = MaterialTheme.colorScheme
-                            .contentColorFor(MaterialTheme.colorScheme.background),
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Medium
-                    )
+            ) { Text(stringResource(Res.string.select_prompt_file)) }
+            if (opMode.value != OpMode.BENCHMARK) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(
+                            enabled = (state.value == AppState.NOT_INITIATED) && !isBenchmark,
+                            checked = decompress,
+                            onCheckedChange = {
+                                decompress = it
+                                if (!it) { dir = null; dirError = null }
+                            },
+                            colors = CheckboxDefaults.colors(
+                                checkedColor = MaterialTheme.colorScheme.primary,
+                                uncheckedColor = MaterialTheme.colorScheme.primary,
+                                checkmarkColor = Color.White,
+                                disabledUncheckedColor = Color.Gray,
+                                disabledCheckedColor = Color.Gray,
+                            ),
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = stringResource(Res.string.decompress),
+                            color = MaterialTheme.colorScheme
+                                .contentColorFor(MaterialTheme.colorScheme.background),
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                    dirError?.let { ErrorText(error = it) }
                 }
-                dirError?.let { ErrorText(error = it) }
             }
             if (decompress) {
                 FileInput(
@@ -623,17 +627,17 @@ fun App(
                     title = stringResource(Res.string.pwd_length),
                     num = pwdLength,
                     displayNum = pwdLengthDisplay,
-                    threshold = 8,
-                    buttonEnabled = (state.value != AppState.RUNNING) && !isBenchmark,
-                    textReadOnly = (state.value == AppState.RUNNING || isBenchmark),
+                    threshold = pwdMaxLength,
+                    buttonEnabled = state.value != AppState.RUNNING,
+                    textReadOnly = state.value == AppState.RUNNING,
                     onValueChange = {
                         pwdLength.value = if (pwdLength.value < 1) 1
-                        else if (pwdLength.value > 8) 8
+                        else if (pwdLength.value > pwdMaxLength) pwdMaxLength
                         else pwdLength.value
                     },
                     onFocusChanged = {
                         if (pwdLength.value < 1) { pwdLength.value = 1 }
-                        else if (pwdLength.value > 8) { pwdLength.value = 8 }
+                        else if (pwdLength.value > pwdMaxLength) { pwdLength.value = pwdMaxLength }
                         pwdLengthDisplay.value = pwdLength.value.toString()
                     }
                 )

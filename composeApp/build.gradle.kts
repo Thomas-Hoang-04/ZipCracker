@@ -53,7 +53,7 @@ compose.desktop {
 
             targetFormats(TargetFormat.Msi, TargetFormat.Deb)
             packageName = "ZipCracker"
-            packageVersion = "1.2.0"
+            packageVersion = "1.2.1"
             description = "ZipCracker"
             copyright = "© 2024 Thomas. All rights reserved"
             vendor = "Thomas"
@@ -67,12 +67,10 @@ compose.desktop {
                 dirChooser = true
                 menuGroup = "ZipCracker"
                 perUserInstall = true
-                installationPath = "D:\\"
                 includeAllModules = true
             }
 
             linux {
-                modules("jdk.security.auth")
                 debMaintainer = "minhhaihoang2312@gmail.com"
                 menuGroup = "ZipCracker"
             }

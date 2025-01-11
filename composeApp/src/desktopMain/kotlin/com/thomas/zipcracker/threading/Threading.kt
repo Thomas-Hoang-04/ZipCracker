@@ -2,9 +2,6 @@ package com.thomas.zipcracker.threading
 
 import androidx.compose.runtime.MutableState
 import androidx.datastore.core.DataStore
-import com.sun.jna.Native
-import com.sun.jna.platform.win32.Kernel32
-import com.sun.jna.platform.win32.WinNT
 import com.thomas.zipcracker.metadata.AppState
 import com.thomas.zipcracker.crypto.CrackingOptions
 import com.thomas.zipcracker.crypto.AESDecryptor
@@ -60,9 +57,7 @@ class DictProducer(
     private val lastPwdInfo: LastPwdMetadata? = null
 ): Thread() {
     override fun run() {
-        val handle: WinNT.HANDLE = Kernel32.INSTANCE.GetCurrentThread()
-        val inst: Affinity = Native.load("Kernel32", Affinity::class.java) as Affinity
-        inst.SetThreadAffinityMask(handle, mask)
+        setAffinity(mask)
         try {
             var startIdx = 0
             var lineIdxStart = 0L
@@ -143,9 +138,7 @@ class BruteProducer(
         }
     }
     override fun run() {
-        val handle: WinNT.HANDLE = Kernel32.INSTANCE.GetCurrentThread()
-        val inst: Affinity = Native.load("Kernel32", Affinity::class.java) as Affinity
-        inst.SetThreadAffinityMask(handle, mask)
+        setAffinity(mask)
         try {
             if (lastPwd != null) { startLength = lastPwd.length }
             outer@ for (length in startLength..maxSize) {
@@ -172,9 +165,7 @@ class Consumer<T>(
     private val benchmark: Boolean = false
 ): Thread() {
     override fun run() {
-        val handle: WinNT.HANDLE = Kernel32.INSTANCE.GetCurrentThread()
-        val inst: Affinity = Native.load("Kernel32", Affinity::class.java) as Affinity
-        inst.SetThreadAffinityMask(handle, mask)
+        setAffinity(mask)
         try {
             outer@ while (!Watcher.stop) {
                 if (Watcher.pause) { sleep(250); continue@outer }
@@ -210,9 +201,7 @@ class Tracker(
     private val dataStore: DataStore<UserPreferences>,
 ): Thread() {
     override fun run() {
-        val handle: WinNT.HANDLE = Kernel32.INSTANCE.GetCurrentThread()
-        val inst: Affinity = Native.load("Kernel32", Affinity::class.java) as Affinity
-        inst.SetThreadAffinityMask(handle, mask)
+        setAffinity(mask)
         val scope = CoroutineScope(Dispatchers.IO)
         var lastPwdCount = 0L
         var lastConsumed: String? = null
@@ -276,10 +265,7 @@ fun crack(
     Watcher.pwdEntered = 0
     Watcher.pwdConsumed = 0
 
-    val handle: WinNT.HANDLE = Kernel32.INSTANCE.GetCurrentThread()
-
-    val inst: Affinity = Native.load("Kernel32", Affinity::class.java) as Affinity
-    inst.SetThreadAffinityMask(handle, mask)
+    setAffinity(mask)
 
     val distribution = ArrayDeque<Int>(worker)
     threadDistribution(mask, worker, distribution)

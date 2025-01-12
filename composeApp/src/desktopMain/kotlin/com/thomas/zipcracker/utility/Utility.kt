@@ -153,8 +153,8 @@ suspend fun writeLogFile(
     }
 
     val encryptionMode = when (metadata.encryption) {
-        ZIPStatus.AES_ENCRYPTION -> "AES"
-        ZIPStatus.STANDARD_ENCRYPTION -> "ZIP 2.0 (ZipCrypto)"
+        ZIPStatus.AES_ENCRYPTION, ZIPStatus.LARGE_FILE_AES -> "AES"
+        ZIPStatus.STANDARD_ENCRYPTION, ZIPStatus.LARGE_FILE_STANDARD -> "ZIP 2.0 (ZipCrypto)"
         else -> "Unknown encryption"
     }
     val encryptionType = getString(Res.string.stat_encryption, encryptionMode)

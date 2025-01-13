@@ -31,20 +31,16 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
-import kotlin.experimental.and
 import kotlin.time.Duration.Companion.seconds
 
-fun String.getLittleEndian(): String
-    = this.chunked(2).reversed().joinToString("")
+fun ByteArray.processLittleEndian(): Long {
+    return this.reversedArray().toRawString().toLong(16)
+}
 
 fun String.getByteArray(): ByteArray
     = this.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
 
 fun ByteArray.toRawString(delimiter: String = ""): String = this.joinToString(delimiter) { byte -> "%02x".format(byte) }
-
-fun countOccur(input: String, target: String): Int
-    = Regex(target).findAll(input).count()
-
 
 fun formatNumber(n: Double): String {
     val formatted: (Double) -> String = { "%.2f".format(it) }
@@ -56,75 +52,42 @@ fun formatNumber(n: Double): String {
     }
 }
 
-fun extractZip(input: String): List<String> {
-    val target = "504b0304"
-    val ans = countOccur(input, target)
-    if (ans == 0) { return emptyList() }
-    if (ans == 1) {
-        return listOf(input.substringAfter(target).substringBefore("504b0102"))
-    }
-    val res = mutableListOf<String>()
-    var rem = input
-    while (rem.contains(target)) {
-        res.add(rem.substringAfter(target).substringBefore(target))
-        rem = rem.substringAfter(target)
-    }
-    res[res.lastIndex] = res.last().substringBefore("504b0102")
-    return res
-}
-
-fun readFile(filename: String): ByteArray = File(filename).inputStream().readBytes()
-
-suspend fun checkLargeFileEncryption(path: String): ZIPStatus
-    = withContext(Dispatchers.IO) {
-        val stream = ZipInputStream(FileInputStream(path))
-        var encryption: ZIPStatus = ZIPStatus.NO_ENCRYPTION
-        try {
-            var entry = stream.nextEntry
-            while (entry != null) {
-                if (entry.isDirectory) {
-                    entry = stream.nextEntry; continue
-                }
-                entry.isEncrypted
-            }
-        } catch (e: Exception) {
-            encryption = when {
-                e.stackTraceToString()
-                    .contains("StandardDecrypter") -> { ZIPStatus.LARGE_FILE_STANDARD }
-
-                e.stackTraceToString()
-                    .contains("AESDecrypter") -> { ZIPStatus.LARGE_FILE_AES }
-
-                else -> { encryption }
-            }
-        }
-        stream.close()
-        encryption
-    }
-
-
 suspend fun checkZIPEncryption(path: String): ZIPStatus
     = withContext(Dispatchers.IO) {
-        var encryption = ZIPStatus.NO_ENCRYPTION
-        if (File(path).length() >= 1e8) {
-            encryption = checkLargeFileEncryption(path)
-            return@withContext encryption
-        }
-        val rawData = readFile(path)
-        if (!rawData.copyOfRange(0, 4).contentEquals(byteArrayOf(0x50, 0x4b, 0x03, 0x04))) {
-            encryption = ZIPStatus.UNKNOWN_FORMAT
+        val status: ZIPStatus
+        val sig = FileInputStream(path).readNBytes(4)
+        status = if (sig.toRawString() != Decryptor.LOCAL_FILE_HEADER
+            && sig.toRawString() != Decryptor.END_OF_CENTRAL_DIR){
+            ZIPStatus.UNKNOWN_FORMAT
+        } else if (sig.toRawString() == Decryptor.END_OF_CENTRAL_DIR) {
+            ZIPStatus.EMPTY_FILE
         } else {
-            val samples = extractZip(rawData.toRawString())
-            for (sample in samples) {
-                if (Decryptor.isDirectory(sample)) continue
-                val rawSample = sample.getByteArray()
-                if (rawSample[2] and 0x1 == 0x1.toByte()) {
-                    encryption = if (rawSample[4] == 0x63.toByte()) ZIPStatus.AES_ENCRYPTION
-                    else ZIPStatus.STANDARD_ENCRYPTION
+            val stream = ZipInputStream(FileInputStream(path))
+            var encryption = ZIPStatus.NO_ENCRYPTION
+            try {
+                var entry = stream.nextEntry
+                while (entry != null) {
+                    if (entry.isDirectory) { entry = stream.nextEntry; continue }
+                    entry.isEncrypted
                 }
-            }
+            } catch (e: Exception) {
+                encryption = when {
+                    e.stackTraceToString()
+                        .contains("StandardDecrypter") -> {
+                        ZIPStatus.STANDARD_ENCRYPTION
+                    }
+
+                    e.stackTraceToString()
+                        .contains("AESDecrypter") -> {
+                        ZIPStatus.AES_ENCRYPTION
+                    }
+
+                    else -> ZIPStatus.NO_ENCRYPTION
+                }
+            } finally { stream.close() }
+            encryption
         }
-        encryption
+        status
     }
 
 
@@ -153,8 +116,8 @@ suspend fun writeLogFile(
     }
 
     val encryptionMode = when (metadata.encryption) {
-        ZIPStatus.AES_ENCRYPTION, ZIPStatus.LARGE_FILE_AES -> "AES"
-        ZIPStatus.STANDARD_ENCRYPTION, ZIPStatus.LARGE_FILE_STANDARD -> "ZIP 2.0 (ZipCrypto)"
+        ZIPStatus.AES_ENCRYPTION -> "AES"
+        ZIPStatus.STANDARD_ENCRYPTION -> "ZIP 2.0 (ZipCrypto)"
         else -> "Unknown encryption"
     }
     val encryptionType = getString(Res.string.stat_encryption, encryptionMode)

@@ -1,72 +1,92 @@
 package com.thomas.zipcracker.crypto
-import com.thomas.zipcracker.metadata.Compression
+
 import com.thomas.zipcracker.metadata.OpMode
-import com.thomas.zipcracker.utility.DeflateUtil
 import com.thomas.zipcracker.utility.*
-import java.util.zip.CRC32
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.FileInputStream
+import java.io.PushbackInputStream
 
 class ZipCryptoDecryptor(
     private val file: String,
     private val mode: OpMode
-): Decryptor<ZipCryptoSample> {
-    override val samples: List<ZipCryptoSample> = extractSamples()
-    override val decryptedStreams: MutableList<ByteArray> = mutableListOf()
+): Decryptor<ZipCryptoSample>(file) {
+    override val samples: MutableList<ZipCryptoSample> = mutableListOf()
 
-    override fun extractSamples(): List<ZipCryptoSample>  {
-        val res = readFile(file).joinToString("") {
-                byte -> "%02x".format(byte)
-        }
-        val content = extractZip(res).filter { !Decryptor.isDirectory(it) }.map {
-            val rawContent = it.getByteArray()
-            val compression = when (rawContent[4].toInt()) {
-                Compression.STORE.value -> Compression.STORE
-                Compression.DEFLATE.value -> Compression.DEFLATE
-                else -> Compression.UNKNOWN
-            }
-            val lastModTime = it.substring(12, 16).getLittleEndian()
-            val filenameSize = rawContent[23].toInt() shl 8 or rawContent[22].toInt()
-            val extraFieldSize = rawContent[25].toInt() shl 8 or rawContent[24].toInt()
-            val headerStart = (26 + filenameSize + extraFieldSize) * 2
+    override var extractState: Boolean = false
 
-            val encryptedHeader = it.substring(headerStart, headerStart + 24)
-            val crc = if (it.contains("504b0708")) {
-                val dataDescriptor = it.substringAfter("504b0708")
-                dataDescriptor.substring(0, 8)
-            } else {
-                it.substring(20, 28)
-            }.getLittleEndian()
-            val data = it.substringBefore("504b0708").substring(headerStart + 24)
-            ZipCryptoSample(crc, encryptedHeader, data, lastModTime, compression)
-        }
-
-        return content.sortedBy { it.data.length }
+    init {
+        val scope = CoroutineScope(Dispatchers.IO)
+        scope.launch { extractSamples() }
     }
 
-    private fun verifyData(sample: ZipCryptoSample, engine: ZipCryptoEngine): Boolean {
-        val decrypted = engine.dataDecrypt(sample.data.getByteArray())
-        if (sample.compression == Compression.DEFLATE) {
-            try {
-                val decompressed = DeflateUtil.decompress(decrypted)
-                val crc32 = CRC32()
-                crc32.update(decompressed)
-                return (crc32.value == sample.crc.toLong(16)).also {
-                    if (it) { decryptedStreams.add(decompressed) }
+    override suspend fun extractSamples()  {
+        withContext(Dispatchers.IO) {
+            val stream = PushbackInputStream(FileInputStream(file), DATA_BUFFER_SIZE)
+            var streamCount = 0
+            while (true) {
+                val sign = stream.readNBytes(4)
+                if (!verifyStartSignature(sign)) break
+                val header = stream.readNBytes(26)
+
+                val filenameSize = header.copyOfRange(22, 24).processLittleEndian()
+                val entryName = stream.readNBytes(filenameSize.toInt())
+                if (isDirectory(entryName)) continue
+
+                streamCount++
+                if (streamCount > 8) break
+
+                val extraFieldSize = header.copyOfRange(24, 26).processLittleEndian()
+//            val extraField = stream.readNBytes(extraFieldSize.toInt())
+                stream.skipNBytes(extraFieldSize)
+
+                val dataDescriptorExist = header.copyOfRange(2, 4).processLittleEndian() and 8 == 8L
+                val lastModTime = header.copyOfRange(6, 8).reversedArray()
+                val encryptionHeader = stream.readNBytes(12)
+
+                var pos: Int
+                data@ while (true) {
+                    val buffer = stream.readNBytes(DATA_BUFFER_SIZE)
+                    val content = buffer.toRawString()
+                    val flag = if (content.contains(LOCAL_FILE_HEADER)) "start"
+                    else if (content.contains(CENTRAL_DIR_HEADER)) "end" else "none"
+                    if (flag == "none") continue@data
+                    pos = (if (flag == "start") content.indexOf(LOCAL_FILE_HEADER)
+                    else content.indexOf(CENTRAL_DIR_HEADER)) / 2
+                    if (flag == "end") { stream.unread(buffer); break@data }
+                    val version = content.substringAfter(LOCAL_FILE_HEADER).substring(0, 4).getByteArray()
+                    if (version.processLittleEndian() > 63L) continue@data
+                    stream.unread(buffer)
+                    break@data
                 }
-            } catch (e: Exception) {
-                return false
+
+                val crc = if (!dataDescriptorExist) {
+                    stream.skipNBytes(pos.toLong())
+                    header.copyOfRange(10, 14).reversedArray()
+                } else {
+                    val content = stream.readNBytes(pos)
+                    val dataDescriptor = content.toRawString().substringAfter(DATA_DESCRIPTOR)
+                    dataDescriptor.substring(0, 8).getByteArray().reversedArray()
+                }
+
+                samples.add(
+                    ZipCryptoSample(
+                        crc.toRawString(),
+                        encryptionHeader.toRawString(),
+                        lastModTime.toRawString()
+                    )
+                )
             }
-        } else {
-            val crc32 = CRC32()
-            crc32.update(decrypted)
-            return (crc32.value == sample.crc.toLong(16)).also {
-                if (it) { decryptedStreams.add(decrypted) }
-            }
+            stream.close()
+            extractState = true
         }
     }
 
     override fun checkPassword(password: String): Boolean {
         val engine = ZipCryptoEngine()
-        val masterLock = BooleanArray(samples.size.coerceAtMost(3))
+        val masterLock = BooleanArray(samples.size.coerceAtMost(4))
         val testedSamples = samples.take(masterLock.size)
         for (i in masterLock.indices) {
             password.forEach { engine.updateKeys(it) }
@@ -80,13 +100,8 @@ class ZipCryptoDecryptor(
             masterLock[i] = (checkByte == crcRef || checkByte == lastModDate)
             engine.resetKeys()
         }
-        if (masterLock.all { it } && mode != OpMode.BENCHMARK) {
-            for (i in testedSamples.indices) {
-                password.forEach { engine.updateKeys(it) }
-                masterLock[i] = verifyData(testedSamples[i], engine)
-                engine.resetKeys()
-            }
-            return masterLock.all { it }
+        if (mode != OpMode.BENCHMARK && masterLock.all { it }) {
+            return verifyPassword(password)
         } else {
             engine.resetKeys()
             return false

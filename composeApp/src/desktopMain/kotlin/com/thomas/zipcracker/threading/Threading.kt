@@ -6,7 +6,6 @@ import com.thomas.zipcracker.metadata.AppState
 import com.thomas.zipcracker.crypto.CrackingOptions
 import com.thomas.zipcracker.crypto.AESDecryptor
 import com.thomas.zipcracker.crypto.Decryptor
-import com.thomas.zipcracker.crypto.LargeFileDecryptor
 import com.thomas.zipcracker.metadata.LastPwdMetadata
 import com.thomas.zipcracker.metadata.OpMode
 import com.thomas.zipcracker.utility.UserPreferences
@@ -18,6 +17,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.getString
 import zipcracker.composeapp.generated.resources.Res
+import zipcracker.composeapp.generated.resources.assert_encryption_error
+import zipcracker.composeapp.generated.resources.assert_sample_error
 import zipcracker.composeapp.generated.resources.dict_error
 import java.io.File
 import java.util.concurrent.BlockingQueue
@@ -250,16 +251,30 @@ fun crack(
     lastPwdMetadata: LastPwdMetadata? = null
 ) {
     val scope = CoroutineScope(Dispatchers.IO)
+
+    if (options.dictFiles.isEmpty() && options.opMode == OpMode.DICTIONARY) {
+        scope.launch { error.value = getString(Res.string.dict_error) }
+        return
+    }
+
     val mask = options.threadMask
     val worker = mask.countOneBits()
     val decryptor: Decryptor<*> = when (options.encryption) {
         ZIPStatus.AES_ENCRYPTION -> AESDecryptor(options.file, mode = options.opMode)
         ZIPStatus.STANDARD_ENCRYPTION -> ZipCryptoDecryptor(options.file, mode = options.opMode)
-        ZIPStatus.LARGE_FILE_AES, ZIPStatus.LARGE_FILE_STANDARD -> LargeFileDecryptor(options.file)
         else -> {
-            error.value = "Unknown encryption type"
+            scope.launch { error.value = getString(Res.string.assert_encryption_error) }
             return
         }
+    }
+
+    while (!decryptor.extractState) {
+        Thread.sleep(100)
+    }
+
+    if (!decryptor.assertSamples()) {
+        scope.launch { error.value = getString(Res.string.assert_sample_error) }
+        return
     }
 
     Watcher.pwdEntered = 0
@@ -270,14 +285,6 @@ fun crack(
     val distribution = ArrayDeque<Int>(worker)
     threadDistribution(mask, worker, distribution)
     val latch = CountDownLatch(worker)
-
-    if (options.dictFiles.isEmpty() && options.opMode == OpMode.DICTIONARY) {
-        scope.launch {
-            error.value = getString(Res.string.dict_error)
-        }
-        state.value = AppState.CANCELLED
-        return
-    }
 
     val pwdQueue: BlockingQueue<String> = LinkedBlockingQueue(2000 * worker)
     when (options.opMode) {

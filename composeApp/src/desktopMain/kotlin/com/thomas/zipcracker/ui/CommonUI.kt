@@ -719,8 +719,8 @@ fun ResultDetails(
 
     val noEncryption = stringResource(Res.string.no_encryption)
     val encryptionMode = when (metadata.encryption) {
-        ZIPStatus.AES_ENCRYPTION, ZIPStatus.LARGE_FILE_AES -> "AES"
-        ZIPStatus.STANDARD_ENCRYPTION, ZIPStatus.LARGE_FILE_STANDARD -> "ZIP 2.0 (ZipCrypto)"
+        ZIPStatus.AES_ENCRYPTION -> "AES"
+        ZIPStatus.STANDARD_ENCRYPTION -> "ZIP 2.0 (ZipCrypto)"
         else -> noEncryption
     }
     val encryptionTitle = stringResource(Res.string.stat_encryption, encryptionMode)
@@ -744,10 +744,12 @@ fun ResultDetails(
     val consumed = stringResource(Res.string.pwd_consumed)
     val entered = stringResource(Res.string.pwd_entered)
 
+    val maxSpeedValue = Watcher.speedRecord.maxOrNull()?.toDouble() ?: 0.0
+
     var fileSaveSuccess by remember { mutableStateOf<Boolean?>(null) }
 
-    val speed = remember { if (Watcher.timer > 10) Watcher.pwdEntered / Watcher.timer
-        else Watcher.speedRecord.average().toLong() }
+    val speed = remember { if (Watcher.timer in 1..10) Watcher.pwdEntered / Watcher.timer
+        else Watcher.speedRecord.filter { it > maxSpeedValue * 0.1 }.average().toLong() }
 
     val statistics = remember {
         listOf(
@@ -757,9 +759,7 @@ fun ResultDetails(
             KeyValueText(avgSpeed, "${formatNumber(speed.toDouble())} pwd/s"),
             KeyValueText(
                 maxSpeed,
-                "${formatNumber(
-                    Watcher.speedRecord.maxOrNull()?.toDouble() ?: 0.0
-                )} pwd/s"
+                "${formatNumber(maxSpeedValue)} pwd/s"
             ),
             KeyValueText(
                 speedLow,

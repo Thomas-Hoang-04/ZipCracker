@@ -33,6 +33,9 @@
     <string name="pwd_error">Cần ít nhất một tổ hợp mật khẩu</string>
     <string name="format_error">Định dạng tệp ZIP không hợp lệ</string>
     <string name="encryption_error">Tệp ZIP không được mã hóa</string>
+    <string name="zip_empty">Tệp ZIP trống</string>
+    <string name="assert_encryption_error">Mã hóa không xác định</string>
+    <string name="assert_sample_error">Không thể trích xuất tệp mẫu</string>
     <string name="select_dict_file">Chọn tệp từ điển</string>
     <string name="select_dict_prompt">Địa chỉ tệp từ điển</string>
     <string name="stat_time">Thời gian: %1$s</string>

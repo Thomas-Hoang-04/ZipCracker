@@ -110,6 +110,7 @@ fun App(
     val refPwdOptionsError = stringResource(Res.string.pwd_error)
     val formatError = stringResource(Res.string.format_error)
     val encryptionError = stringResource(Res.string.encryption_error)
+    val emptyError = stringResource(Res.string.zip_empty)
 
     val fileError = remember { mutableStateOf<String?>(null) }
     var pwdOptionsError by remember { mutableStateOf<String?>(null) }
@@ -136,6 +137,7 @@ fun App(
                     when (val status = checkZIPEncryption(file!!.path)) {
                         ZIPStatus.UNKNOWN_FORMAT -> formatError
                         ZIPStatus.NO_ENCRYPTION -> encryptionError
+                        ZIPStatus.EMPTY_FILE -> emptyError
                         else -> { encryption = status; null }
                     }
                 }

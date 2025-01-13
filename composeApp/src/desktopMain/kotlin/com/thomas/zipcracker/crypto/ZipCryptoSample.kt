@@ -1,13 +1,9 @@
 package com.thomas.zipcracker.crypto
 
-import com.thomas.zipcracker.metadata.Compression
-
 data class ZipCryptoSample(
     val crc: String,
     val header: String,
-    val data: String,
     val lastModTime: String,
-    val compression: Compression,
 ) {
     fun getCRCHighByte(): Byte {
         return crc.chunked(2).first().toInt(16).toByte()

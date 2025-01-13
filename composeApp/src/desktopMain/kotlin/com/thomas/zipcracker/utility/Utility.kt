@@ -14,13 +14,8 @@ import org.jetbrains.compose.resources.getString
 import zipcracker.composeapp.generated.resources.Res
 import zipcracker.composeapp.generated.resources.pwd_msg
 import zipcracker.composeapp.generated.resources.pwd_none
-import zipcracker.composeapp.generated.resources.select_benchmark
-import zipcracker.composeapp.generated.resources.select_brute
-import zipcracker.composeapp.generated.resources.select_dict
 import zipcracker.composeapp.generated.resources.stat_encryption
 import zipcracker.composeapp.generated.resources.stat_file
-import zipcracker.composeapp.generated.resources.stat_method
-import zipcracker.composeapp.generated.resources.stat_thread
 import zipcracker.composeapp.generated.resources.statistics
 import zipcracker.composeapp.generated.resources.timestamp
 import java.io.ByteArrayOutputStream
@@ -106,14 +101,6 @@ suspend fun writeLogFile(
     else getPluralString(Res.plurals.pwd_msg, pwd.size, pwd.joinToString())
 
     val fileTitle = getString(Res.string.stat_file)
-    val threadTitle = getString(Res.string.stat_thread)
-
-    val methodTitle = getString(Res.string.stat_method)
-    val method = when (metadata.mode) {
-        OpMode.BRUTE -> getString(Res.string.select_brute)
-        OpMode.DICTIONARY -> getString(Res.string.select_dict)
-        OpMode.BENCHMARK -> getString(Res.string.select_benchmark)
-    }
 
     val encryptionMode = when (metadata.encryption) {
         ZIPStatus.AES_ENCRYPTION -> "AES"
@@ -135,9 +122,7 @@ suspend fun writeLogFile(
         bos.write("$timestamp\n".encodeToByteArray())
         bos.write("$fileTitle${metadata.file}\n".encodeToByteArray())
         bos.write("$encryptionType\n".encodeToByteArray())
-        bos.write("$methodTitle$method\n".encodeToByteArray())
-        bos.write("$threadTitle${metadata.thread}\n".encodeToByteArray())
-        bos.write("$pwdString\n".encodeToByteArray())
+        if (metadata.mode != OpMode.BENCHMARK) bos.write("$pwdString\n".encodeToByteArray())
         content.forEach {
             bos.write("${it.title}${it.value}\n".encodeToByteArray())
         }

@@ -108,7 +108,7 @@ class AESDecryptor(
 
         val check = passVerifyBytes.contentEquals(masterKey.sliceArray(64..65))
 
-        if (mode != OpMode.BENCHMARK && check) {
+        if ((mode != OpMode.BENCHMARK) && check) {
             return verifyPassword(password)
         }
 

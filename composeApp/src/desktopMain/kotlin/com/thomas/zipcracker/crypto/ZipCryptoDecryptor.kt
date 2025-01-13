@@ -100,7 +100,7 @@ class ZipCryptoDecryptor(
             masterLock[i] = (checkByte == crcRef || checkByte == lastModDate)
             engine.resetKeys()
         }
-        if (mode != OpMode.BENCHMARK && masterLock.all { it }) {
+        if ((mode != OpMode.BENCHMARK) && masterLock.all { it }) {
             return verifyPassword(password)
         } else {
             engine.resetKeys()

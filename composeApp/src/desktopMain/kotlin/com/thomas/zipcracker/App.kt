@@ -306,7 +306,7 @@ fun App(
                             val options = CrackingOptions(
                                 file = file?.absolutePath ?: return@launch,
                                 encryption = encryption,
-                                dictFiles = dictionaryFile.map { it.absolutePath },
+                                dictFiles = dictionaryFile.sortedBy { it.length() }.map { it.absolutePath },
                                 maxAllowedThread = threadCount.value,
                                 opMode = opMode.value,
                                 maxPwdLength = if (opMode.value == OpMode.DICTIONARY) -1

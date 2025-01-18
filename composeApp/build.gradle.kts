@@ -53,7 +53,7 @@ compose.desktop {
 
             targetFormats(TargetFormat.Msi, TargetFormat.Deb)
             packageName = "ZipCracker"
-            packageVersion = "2.0.1"
+            packageVersion = "2.1.0"
             description = "ZipCracker"
             copyright = "© 2024 Thomas. All rights reserved"
             vendor = "Thomas"
@@ -63,16 +63,20 @@ compose.desktop {
             appResourcesRootDir.set(project.layout.projectDirectory.dir("res"))
 
             windows {
-                iconFile.set(file("ZipCracker.ico"))
+                iconFile.set(file("appIcon/ZipCracker.ico"))
                 dirChooser = true
                 menuGroup = "ZipCracker"
                 perUserInstall = true
                 includeAllModules = true
+                upgradeUuid="389ce81d-0ef9-4814-81ba-8a84b2258095"
             }
 
             linux {
+                iconFile.set(file("appIcon/ZipCracker.png"))
                 debMaintainer = "minhhaihoang2312@gmail.com"
                 menuGroup = "ZipCracker"
+                debPackageVersion = "1.0.0"
+                includeAllModules = true
             }
         }
     }

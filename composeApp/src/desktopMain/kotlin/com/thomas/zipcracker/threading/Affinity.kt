@@ -23,7 +23,7 @@ interface WindowsAffinity: Kernel32 {
 @Suppress("FunctionName")
 interface LinuxAffinity: Library {
     companion object {
-        val CPU_SET_SIZE = 1024 / NativeLong.SIZE
+        val CPU_SET_SIZE: Int = 1024 / NativeLong.SIZE
         val INSTANCE: LinuxAffinity = Native.load("pthread", LinuxAffinity::class.java) as LinuxAffinity
     }
 

@@ -744,8 +744,6 @@ fun ResultDetails(
     val consumed = stringResource(Res.string.pwd_consumed)
     val entered = stringResource(Res.string.pwd_entered)
 
-    val maxSpeedValue = remember { Watcher.speedRecord.maxOrNull() ?: 0L }
-
     var fileSaveSuccess by remember { mutableStateOf<Boolean?>(null) }
 
     val statistics = remember {
@@ -756,7 +754,7 @@ fun ResultDetails(
             KeyValueText(avgSpeed, "${formatNumber(Watcher.calculateAvg())} pwd/s"),
             KeyValueText(
                 maxSpeed,
-                "${formatNumber(maxSpeedValue)} pwd/s"
+                "${formatNumber(Watcher.calculateMax())} pwd/s"
             ),
             KeyValueText(
                 speedLow,

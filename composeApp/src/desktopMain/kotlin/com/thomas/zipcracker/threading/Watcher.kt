@@ -44,4 +44,14 @@ object Watcher {
         val fivePercentCount = (sortedSpeed.size * 0.05).coerceAtLeast(5.0).toInt()
         return sortedSpeed.take(fivePercentCount).average().toLong()
     }
+
+    fun calculateAvg(): Long {
+        val maxSpeedValue = speedRecord.maxOrNull() ?: 0
+        return if (timer < 1) pwdConsumed
+        else {
+            val filterRecord = speedRecord.filter { it > maxSpeedValue * 0.1 }
+            if (filterRecord.isEmpty()) 0
+            else filterRecord.average().toLong()
+        }
+    }
 }

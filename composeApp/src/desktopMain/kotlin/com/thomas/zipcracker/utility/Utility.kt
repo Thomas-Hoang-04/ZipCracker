@@ -37,13 +37,14 @@ fun String.getByteArray(): ByteArray
 
 fun ByteArray.toRawString(delimiter: String = ""): String = this.joinToString(delimiter) { byte -> "%02x".format(byte) }
 
-fun formatNumber(n: Double): String {
+fun formatNumber(n: Long): String {
+    val fp = n.toDouble()
     val formatted: (Double) -> String = { "%.2f".format(it) }
 
     return when {
         n < 1e6 -> NumberFormat.getInstance().format(n)
-        n in 1e6..< 1e9 -> "${formatted(n / 1000000.0)}M"
-        else -> "${formatted(n / 1000000000.0)}B"
+        fp in 1e6..< 1e9 -> "${formatted(fp / 1000000.0)}M"
+        else -> "${formatted(fp / 1000000000.0)}B"
     }
 }
 

@@ -517,7 +517,7 @@ fun ProgressTracker(
         else "%.2f".format(progress * 100)
     }
     val displaySpeed by derivedStateOf {
-        formatNumber(speed.toDouble())
+        formatNumber(speed)
     }
 
     LaunchedEffect(state.value) {
@@ -526,8 +526,8 @@ fun ProgressTracker(
             paused = Watcher.pause
             if (!paused) {
                 if (opMode == OpMode.DICTIONARY) {
-                    progressDict = formatNumber(Watcher.pwdConsumed.toDouble()) +
-                            "/" + formatNumber(Watcher.pwdEntered.toDouble())
+                    progressDict = formatNumber(Watcher.pwdConsumed) +
+                            "/" + formatNumber(Watcher.pwdEntered)
                 } else {
                     progress = if (Watcher.maxPassword > 0) {
                         Watcher.pwdConsumed / Watcher.maxPassword.toFloat()
@@ -744,19 +744,16 @@ fun ResultDetails(
     val consumed = stringResource(Res.string.pwd_consumed)
     val entered = stringResource(Res.string.pwd_entered)
 
-    val maxSpeedValue = Watcher.speedRecord.maxOrNull()?.toDouble() ?: 0.0
+    val maxSpeedValue = remember { Watcher.speedRecord.maxOrNull() ?: 0L }
 
     var fileSaveSuccess by remember { mutableStateOf<Boolean?>(null) }
-
-    val speed = remember { if (Watcher.timer in 1..10) Watcher.pwdEntered / Watcher.timer
-        else Watcher.speedRecord.filter { it > maxSpeedValue * 0.1 }.average().toLong() }
 
     val statistics = remember {
         listOf(
             KeyValueText(modeTitle, method),
             KeyValueText(threadTitle, metadata.thread.toString()),
             KeyValueText(timeStat, Watcher.timer.seconds.toString()),
-            KeyValueText(avgSpeed, "${formatNumber(speed.toDouble())} pwd/s"),
+            KeyValueText(avgSpeed, "${formatNumber(Watcher.calculateAvg())} pwd/s"),
             KeyValueText(
                 maxSpeed,
                 "${formatNumber(maxSpeedValue)} pwd/s"
@@ -764,11 +761,11 @@ fun ResultDetails(
             KeyValueText(
                 speedLow,
                 "${formatNumber(
-                    Watcher.calculateFivePercentLow().toDouble()
+                    Watcher.calculateFivePercentLow()
                 )} pwd/s"
             ),
-            KeyValueText(entered, formatNumber(Watcher.pwdEntered.toDouble())),
-            KeyValueText(consumed, formatNumber(Watcher.pwdConsumed.toDouble())),
+            KeyValueText(entered, formatNumber(Watcher.pwdEntered)),
+            KeyValueText(consumed, formatNumber(Watcher.pwdConsumed)),
         )
     }
 

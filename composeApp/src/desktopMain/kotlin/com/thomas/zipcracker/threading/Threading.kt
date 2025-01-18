@@ -2,6 +2,7 @@ package com.thomas.zipcracker.threading
 
 import androidx.compose.runtime.MutableState
 import androidx.datastore.core.DataStore
+import com.github.tkuenneth.nativeparameterstoreaccess.NativeParameterStoreAccess.IS_LINUX
 import com.thomas.zipcracker.metadata.AppState
 import com.thomas.zipcracker.crypto.CrackingOptions
 import com.thomas.zipcracker.crypto.AESDecryptor
@@ -48,7 +49,6 @@ fun threadDistribution(
             maskQueue.addLast(1 shl opIdx)
         }
 }
-
 
 class DictProducer(
     private val queue: BlockingQueue<String>,
@@ -188,7 +188,9 @@ class Consumer<T>(
                         break@outer
                     }
                 }
-                if (pseudoWorker) sleep(10)
+                if (pseudoWorker) {
+                    sleep(10)
+                }
             }
         } catch (e: InterruptedException) { e.toString() }
         finally {
@@ -316,7 +318,7 @@ fun crack(
                 mask = assigned,
                 decryptor = decryptor,
                 resultQueue = result,
-                pseudoWorker = assigned == 0x1,
+                pseudoWorker = assigned == 0x1 && !IS_LINUX,
                 benchmark = options.opMode == OpMode.BENCHMARK
             )
         )

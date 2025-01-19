@@ -40,6 +40,7 @@ import com.thomas.zipcracker.metadata.ZIPStatus
 import com.thomas.zipcracker.threading.crack
 import com.thomas.zipcracker.ui.ConfirmDialog
 import com.thomas.zipcracker.ui.ErrorText
+import com.thomas.zipcracker.ui.MultiFileInput
 import com.thomas.zipcracker.ui.ResultDetails
 import com.thomas.zipcracker.ui.ResultTitle
 import com.thomas.zipcracker.ui.Tracker
@@ -70,13 +71,9 @@ fun App(
     pool: MutableList<Thread>,
     datastore: DataStore<UserPreferences>
 ) {
-    var file by remember { mutableStateOf<File?>(null) }
-    val fileDisplay by derivedStateOf {
-        file?.path ?: ""
-    }
+    val file = remember { mutableStateOf<File?>(null) }
 
-    val dictionaryFile = remember { mutableListOf<File>() }
-    var dictionaryDisplay by remember { mutableStateOf("") }
+    val dictionaryFile = remember { mutableStateListOf<File>() }
 
     val pwdOptions = remember { mutableIntStateOf(0b0101) }
     val pwdOptionsLabels = stringArrayResource(Res.array.pwd_combinations)
@@ -99,10 +96,7 @@ fun App(
     var recovery by remember { mutableStateOf(false) }
     var decompress by remember { mutableStateOf(false) }
     val decompressionState = remember { mutableStateOf(false) }
-    var dir by remember { mutableStateOf<File?>(null) }
-    val dirDisplay by derivedStateOf {
-        dir?.path ?: ""
-    }
+    val dir = remember { mutableStateOf<File?>(null) }
 
     val refFileError = stringResource(Res.string.file_error)
     val refDirError = stringResource(Res.string.dir_err)
@@ -130,11 +124,11 @@ fun App(
         withContext(Dispatchers.Default) {
             pwdOptionsError = if (pwdOptions.value == 0) refPwdOptionsError else null
             dictError = if (opMode.value == OpMode.DICTIONARY && dictionaryFile.isEmpty()) refDictError else null
-            dirError = if (decompress && dir == null) refDirError else null
+            dirError = if (decompress && dir.value == null) refDirError else null
             fileError.value = when {
-                file == null -> refFileError
+                file.value == null -> refFileError
                 else -> {
-                    when (val status = checkZIPEncryption(file!!.path)) {
+                    when (val status = checkZIPEncryption(file.value!!.path)) {
                         ZIPStatus.UNKNOWN_FORMAT -> formatError
                         ZIPStatus.NO_ENCRYPTION -> encryptionError
                         ZIPStatus.EMPTY_FILE -> emptyError
@@ -180,7 +174,7 @@ fun App(
         platformSettings = FileKitPlatformSettings(
             parentWindow = parentWindow
         )
-    ) { f -> file = f?.file }
+    ) { f -> file.value = f?.file }
 
     val dictLauncher = rememberFilePickerLauncher(
         mode = PickerMode.Multiple(null),
@@ -189,23 +183,14 @@ fun App(
         platformSettings = FileKitPlatformSettings(
             parentWindow = parentWindow
         )
-    ) { fs ->
-        fs?.forEach { dictionaryFile.add(it.file) }
-        dictionaryDisplay = dictionaryFile.joinToString("; ") { it.path }
-    }
+    ) { fs -> fs?.forEach { dictionaryFile.add(it.file) } }
 
     val dirLauncher = rememberDirectoryPickerLauncher(
         title = stringResource(Res.string.select_dir_title),
         platformSettings = FileKitPlatformSettings(
             parentWindow = parentWindow
         )
-    ) { f -> dir = f?.file }
-
-    LaunchedEffect(state.value) {
-        if (state.value == AppState.CANCELLED || state.value == AppState.COMPLETED) {
-            dictionaryDisplay = ""
-        }
-    }
+    ) { f -> dir.value = f?.file }
 
     if (recovery) {
         ConfirmDialog(
@@ -220,11 +205,10 @@ fun App(
                     opMode.value = options.opMode
                     threadCount.value = options.maxAllowedThread
                     threadCountDisplay.value = threadCount.value.toString()
-                    file = File(options.file)
+                    file.value = File(options.file)
                     if (options.opMode == OpMode.DICTIONARY) {
                         dictionaryFile.clear()
                         options.dictFiles.forEach { dictionaryFile.add(File(it)) }
-                        dictionaryDisplay = dictionaryFile.joinToString("; ") { it.path }
                     } else {
                         pwdOptions.value = options.pwdOptions
                         pwdLength.value = options.maxPwdLength
@@ -304,7 +288,7 @@ fun App(
                         delay(250)
                         if (validated()) {
                             val options = CrackingOptions(
-                                file = file?.absolutePath ?: return@launch,
+                                file = file.value?.absolutePath ?: return@launch,
                                 encryption = encryption,
                                 dictFiles = dictionaryFile.sortedBy { it.length() }.map { it.absolutePath },
                                 maxAllowedThread = threadCount.value,
@@ -313,9 +297,8 @@ fun App(
                                 else pwdLength.value,
                                 pwdOptions = if (opMode.value == OpMode.DICTIONARY) -1
                                 else pwdOptions.value,
-                                targetDir = dir?.absolutePath ?: ""
+                                targetDir = dir.value?.absolutePath ?: ""
                             )
-                            dictionaryFile.clear()
                             datastore.updateData {
                                 it.copy(
                                     lastOptions = options,
@@ -388,8 +371,8 @@ fun App(
                 autoDecompress = decompress,
                 decompression = decompressionState,
                 metadata = Log(
-                    file = fileDisplay,
-                    dir = dirDisplay,
+                    file = file.value?.path ?: "",
+                    dir = dir.value?.path ?: "",
                     encryption = encryption,
                     mode = opMode.value,
                     thread = threadCount.value
@@ -402,7 +385,7 @@ fun App(
                 error = fileError.value,
             )
             FileInput(
-                filename = fileDisplay,
+                file = file,
                 launcher = zipLauncher,
                 state = state,
             ) { Text(stringResource(Res.string.select_prompt_file)) }
@@ -421,7 +404,7 @@ fun App(
                             checked = decompress,
                             onCheckedChange = {
                                 decompress = it
-                                if (!it) { dir = null; dirError = null }
+                                if (!it) { dir.value = null; dirError = null }
                             },
                             colors = CheckboxDefaults.colors(
                                 checkedColor = MaterialTheme.colorScheme.primary,
@@ -446,7 +429,7 @@ fun App(
             }
             if (decompress) {
                 FileInput(
-                    filename = dirDisplay,
+                    file = dir,
                     launcher = dirLauncher,
                     directory = true,
                     state = state,
@@ -488,14 +471,11 @@ fun App(
                                     pwdLength.value = 4
                                     pwdLengthDisplay.value = pwdLength.value.toString()
                                     if (entry == OpMode.BENCHMARK) {
-                                        dir = null
+                                        dir.value = null
                                         dirError = null
                                         decompress = false
                                     }
-                                } else {
-                                    dictionaryFile.clear()
-                                    dictionaryDisplay = ""
-                                }
+                                } else { dictionaryFile.clear() }
                             },
                             colors = RadioButtonDefaults.colors(
                                 selectedColor = MaterialTheme.colorScheme.primary,
@@ -550,8 +530,8 @@ fun App(
                     title = stringResource(Res.string.select_dict_file),
                     error = dictError
                 )
-                FileInput(
-                    filename = dictionaryDisplay,
+                MultiFileInput(
+                    files = dictionaryFile,
                     launcher = dictLauncher,
                     state = state
                 ) {

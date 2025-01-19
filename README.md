@@ -1,4 +1,4 @@
-![Static Badge](https://img.shields.io/badge/version-2.1.0-blue)
+![Static Badge](https://img.shields.io/badge/version-2.1.1-blue)
 ![Static Badge](https://img.shields.io/badge/release-ready-green)
 # ZipCracker
 

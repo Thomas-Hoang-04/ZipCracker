@@ -1,6 +1,5 @@
 package com.thomas.zipcracker.ui
 
-import androidx.compose.desktop.ui.tooling.preview.Preview
 import androidx.compose.runtime.Composable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -34,12 +33,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
@@ -107,7 +109,9 @@ import zipcracker.composeapp.generated.resources.state_fail
 import zipcracker.composeapp.generated.resources.state_success
 import zipcracker.composeapp.generated.resources.statistics
 import zipcracker.composeapp.generated.resources.time
+import java.awt.Cursor
 import java.awt.Window
+import java.io.File
 import kotlin.time.Duration.Companion.seconds
 
 @Composable
@@ -411,13 +415,15 @@ fun RowWithIncrementer(
 
 @Composable
 fun FileInput(
-    filename: String,
+    file: MutableState<File?>,
     ratio: Float = 0.75f,
     directory: Boolean = false,
     launcher: PickerResultLauncher,
     state: MutableState<AppState>,
     label: @Composable () -> Unit,
 ) {
+    val indicationSource = remember { MutableInteractionSource() }
+    val fileDisplay by derivedStateOf { file.value?.path ?: "" }
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -425,7 +431,7 @@ fun FileInput(
             .padding(vertical = 16.dp, horizontal = 20.dp)
     ) {
         OutlinedTextField(
-            value = filename,
+            value = fileDisplay,
             enabled = false,
             onValueChange = {},
             label = label,
@@ -444,13 +450,108 @@ fun FileInput(
             modifier = Modifier
                 .weight(ratio)
                 .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
+                    interactionSource = indicationSource,
                     indication = null,
                     enabled = state.value != AppState.RUNNING
                 ) {
                     launcher.launch()
                 },
-            singleLine = true
+            singleLine = true,
+            trailingIcon = {
+                if (file.value != null)
+                    Icon(
+                        imageVector = Icons.Default.Clear,
+                        contentDescription = "Clear",
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.pointerHoverIcon(
+                            PointerIcon(Cursor(Cursor.HAND_CURSOR))
+                        ).clickable(
+                            interactionSource = indicationSource,
+                            indication = null,
+                        ) { file.value = null }
+                    )
+            }
+        )
+        Spacer(modifier = Modifier.width(28.dp))
+        Button(
+            enabled = state.value != AppState.RUNNING,
+            colors = ButtonDefaults.buttonColors(
+                contentColor = Color.White,
+                disabledContentColor = MaterialTheme.colorScheme.contentColorFor(
+                    MaterialTheme.colorScheme.background),
+            ),
+            onClick = { launcher.launch() },
+            modifier = Modifier
+                .weight(1 - ratio)
+        ) {
+            Text(
+                if (directory) stringResource(Res.string.select_button_folder)
+                else stringResource(Res.string.select_button_file),
+                fontSize = 15.sp,
+            )
+        }
+    }
+}
+
+@Composable
+fun MultiFileInput(
+    files: SnapshotStateList<File>,
+    ratio: Float = 0.75f,
+    directory: Boolean = false,
+    launcher: PickerResultLauncher,
+    state: MutableState<AppState>,
+    label: @Composable () -> Unit,
+) {
+    val indicationSource = remember { MutableInteractionSource() }
+    val multiFileDisplay by derivedStateOf { files.joinToString("; ") { it.path } }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 16.dp, horizontal = 20.dp)
+    ) {
+        OutlinedTextField(
+            value = multiFileDisplay,
+            enabled = false,
+            onValueChange = {},
+            label = label,
+            textStyle = TextStyle(
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+                lineHeight = 24.sp,
+            ),
+            colors = OutlinedTextFieldDefaults.colors(
+                unfocusedContainerColor = Color.Transparent,
+                focusedContainerColor = Color.Transparent,
+                disabledBorderColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                disabledTextColor = MaterialTheme.colorScheme.primary,
+                disabledLabelColor = MaterialTheme.colorScheme.onSecondary,
+            ),
+            modifier = Modifier
+                .weight(ratio)
+                .clickable(
+                    interactionSource = indicationSource,
+                    indication = null,
+                    enabled = state.value != AppState.RUNNING
+                ) {
+                    launcher.launch()
+                },
+            singleLine = true,
+            trailingIcon = {
+                if (files.isNotEmpty())
+                    Icon(
+                        imageVector = Icons.Default.Clear,
+                        contentDescription = "Clear",
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.pointerHoverIcon(
+                            PointerIcon(Cursor(Cursor.HAND_CURSOR))
+                        ).clickable(
+                            interactionSource = indicationSource,
+                            indication = null,
+                            onClick = files::clear
+                        )
+                    )
+            }
         )
         Spacer(modifier = Modifier.width(28.dp))
         Button(
@@ -1011,22 +1112,4 @@ fun ResultDetails(
             }
         }
     }
-}
-
-@Composable
-@Preview
-fun ResultDetailsPreview() {
-    val state = remember { mutableStateOf(AppState.COMPLETED) }
-    val metadata = Log(
-        file = "test.zip",
-        dir = "test",
-        encryption = ZIPStatus.AES_ENCRYPTION,
-        mode = OpMode.BRUTE,
-        thread = 4,
-    )
-    val pwdSet = hashSetOf("password1", "password2", "password3")
-    val autoDecompress = true
-    val decompression = remember { mutableStateOf(true) }
-
-    ResultDetails(null, pwdSet, state, metadata, autoDecompress, decompression)
 }

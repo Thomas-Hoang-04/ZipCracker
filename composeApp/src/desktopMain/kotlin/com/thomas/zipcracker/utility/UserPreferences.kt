@@ -4,6 +4,7 @@ import androidx.datastore.core.Serializer
 import com.thomas.zipcracker.crypto.CrackingOptions
 import com.thomas.zipcracker.metadata.LastPwdMetadata
 import com.thomas.zipcracker.ui.Theme
+import com.thomas.zipcracker.ui.WindowLocation
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.InputStream
@@ -12,6 +13,7 @@ import java.io.OutputStream
 @Serializable
 data class UserPreferences(
     val uiMode: Theme? = null,
+    val windowMetadata: WindowLocation? = null,
     val lastPwdInfo: LastPwdMetadata? = null,
     val lastOptions: CrackingOptions? = null,
 )

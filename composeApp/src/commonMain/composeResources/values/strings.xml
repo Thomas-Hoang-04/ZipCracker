@@ -17,7 +17,7 @@
         <item>Lowercase (a-z)</item>
         <item>Uppercase (A-Z)</item>
         <item>Digits (0-9)</item>
-        <item>Special characters (!@#$%&amp;^*...)</item>
+        <item>Special characters (!@#$\n%&amp;^*...)</item>
     </string-array>
     <string name="pwd_length">Maximum password length</string>
     <string name="dec">Decrease</string>

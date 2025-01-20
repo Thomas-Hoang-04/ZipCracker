@@ -238,7 +238,6 @@ fun App(
         }
     }
 
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -462,7 +461,7 @@ fun App(
                 ) {
                     OpMode.entries.forEach { entry ->
                         RadioButton(
-                            enabled = state.value != AppState.RUNNING,
+                            enabled = state.value == AppState.NOT_INITIATED,
                             selected = opMode.value == entry,
                             onClick = {
                                 opMode.value = entry
@@ -494,7 +493,7 @@ fun App(
                                 .clickable(
                                     indication = null,
                                     interactionSource = remember { MutableInteractionSource() },
-                                    enabled = state.value != AppState.RUNNING
+                                    enabled = state.value == AppState.NOT_INITIATED
                                 ) {
                                     opMode.value = entry
                                 },
@@ -511,8 +510,8 @@ fun App(
                 num = threadCount,
                 displayNum = threadCountDisplay,
                 threshold = maxThread,
-                buttonEnabled = state.value != AppState.RUNNING,
-                textReadOnly = state.value == AppState.RUNNING,
+                buttonEnabled = state.value == AppState.NOT_INITIATED,
+                textReadOnly = state.value != AppState.NOT_INITIATED,
                 onValueChange = {
                     threadCount.value = if (threadCount.value < 1) 1
                     else if (threadCount.value > maxThread) maxThread
@@ -571,7 +570,7 @@ fun App(
                                         )
                                     ) {
                                         Checkbox(
-                                            enabled = (state.value != AppState.RUNNING)
+                                            enabled = (state.value == AppState.NOT_INITIATED)
                                                     && !(isBenchmark && (index * 2 + idx == 0 || index * 2 + idx == 2)),
                                             checked = (pwdOptions.value and (1 shl (index * 2 + idx))) != 0,
                                             onCheckedChange = {
@@ -610,8 +609,8 @@ fun App(
                     num = pwdLength,
                     displayNum = pwdLengthDisplay,
                     threshold = pwdMaxLength,
-                    buttonEnabled = state.value != AppState.RUNNING,
-                    textReadOnly = state.value == AppState.RUNNING,
+                    buttonEnabled = state.value == AppState.NOT_INITIATED,
+                    textReadOnly = state.value != AppState.NOT_INITIATED,
                     onValueChange = {
                         pwdLength.value = if (pwdLength.value < 1) 1
                         else if (pwdLength.value > pwdMaxLength) pwdMaxLength

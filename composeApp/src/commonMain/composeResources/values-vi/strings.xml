@@ -17,7 +17,7 @@
         <item>Chữ thường (a-z)</item>
         <item>Chữ hoa (A-Z)</item>
         <item>Số (0-9)</item>
-        <item>Ký tự đặc biệt (!@#$%&amp;^*...)</item>
+        <item>Ký tự đặc biệt (!@#$\n%&amp;^*...)</item>
     </string-array>
     <string name="pwd_length">Độ dài mật khẩu tối đa</string>
     <string name="dec">Giảm</string>

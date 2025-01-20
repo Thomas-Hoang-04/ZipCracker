@@ -10,17 +10,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.InternalComposeUiApi
 import androidx.compose.ui.LocalSystemTheme
 import androidx.compose.ui.SystemTheme
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.MenuBar
 import androidx.compose.ui.window.Tray
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPlacement
-import androidx.compose.ui.window.WindowPosition
-import androidx.compose.ui.window.application
+import androidx.compose.ui.window.awaitApplication
 import androidx.compose.ui.window.rememberWindowState
 import androidx.datastore.core.DataStoreFactory
 import com.thomas.zipcracker.metadata.AppState
@@ -29,6 +26,7 @@ import com.thomas.zipcracker.ui.ConfirmDialog
 import com.thomas.zipcracker.utility.PreferencesSerializer
 import com.thomas.zipcracker.threading.Watcher
 import com.thomas.zipcracker.ui.Theme
+import com.thomas.zipcracker.ui.WindowLocation
 import com.thomas.zipcracker.ui.ZipCrackerTheme
 import com.thomas.zipcracker.ui.isDarkThemeActive
 import com.thomas.zipcracker.utility.resourcesDir
@@ -49,29 +47,34 @@ import java.util.Locale
 import kotlin.time.Duration.Companion.seconds
 
 @OptIn(InternalComposeUiApi::class)
-fun main() {
+suspend fun main() {
     val datastore = DataStoreFactory.create(
         serializer = PreferencesSerializer(),
         produceFile = { resourcesDir.resolve("preferences.json") }
     )
-    application {
+    awaitApplication {
         val scope = rememberCoroutineScope()
         val pool = remember { mutableListOf<Thread>() }
+        var load by remember { mutableStateOf(false) }
+
         var showExitDialog by remember { mutableStateOf(false) }
         var showConfirmDialog by remember { mutableStateOf(false) }
+
+        var windowLocationState by remember { mutableStateOf(WindowLocation.default()) }
+
         var uiMode by remember { mutableStateOf(Theme.SYSTEM) }
         val initialDark = LocalSystemTheme.current == SystemTheme.Dark
         var isDark by remember { mutableStateOf(initialDark) }
         val isVisible = remember { mutableStateOf(true) }
+
         val state = remember { mutableStateOf(AppState.NOT_INITIATED) }
         var elapsedTime by remember { mutableLongStateOf(0L) }
+
         var prompt by remember { mutableStateOf("Pause") }
         val openPrompt by derivedStateOf { if (isVisible.value) "Minimize" else "Show" }
         var pwdConsumed by remember { mutableLongStateOf(0) }
+
         val windowState = rememberWindowState(
-            width = 800.dp,
-            height = 960.dp,
-            position = WindowPosition.Aligned(Alignment.Center),
             placement = WindowPlacement.Floating
         )
 
@@ -80,19 +83,10 @@ fun main() {
         val handleExit: suspend () -> Unit = {
             if (!Watcher.stop) {
                 Watcher.stop = true
-                delay(1000)
+                delay(500)
                 if (scope.isActive) scope.cancel()
             }
             exitApplication()
-        }
-
-        LaunchedEffect(state.value) {
-            delay(1000)
-            while (state.value == AppState.RUNNING) {
-                pwdConsumed = Watcher.pwdConsumed
-                elapsedTime = Watcher.timer
-                delay(1000)
-            }
         }
 
         Tray(
@@ -138,98 +132,134 @@ fun main() {
         )
 
         LaunchedEffect(Unit) {
-            val theme =  datastore.data.first().uiMode
+            val preferences = datastore.data.first()
+
+            val theme = preferences.uiMode
             uiMode = theme ?: uiMode
             isDark = (uiMode == Theme.DARK) || (uiMode == Theme.SYSTEM && isDarkThemeActive())
-            datastore.updateData { it.copy(uiMode = uiMode) }
+
+            val windowMetadata = preferences.windowMetadata ?: WindowLocation.default()
+            windowState.size = windowMetadata.toComposeSize()
+            windowState.position = windowMetadata.toComposePosition()
+
+            datastore.updateData { it.copy(uiMode = uiMode, windowMetadata = windowMetadata) }
+            windowLocationState = windowMetadata
+            load = true
+
             while (isActive) {
                 if (uiMode == Theme.SYSTEM && isDark != isDarkThemeActive()) {
                     isDark = isDarkThemeActive()
                 }
+                datastore.updateData { it.copy(windowMetadata = windowLocationState) }
                 delay(1000)
             }
         }
 
-        ZipCrackerTheme(darkTheme = isDark) {
-            Window(
-                state = windowState,
-                onCloseRequest = {
-                    scope.launch {
-                        if (state.value == AppState.RUNNING) {
-                            showConfirmDialog = true
-                            delay(500)
-                        } else {
-                            showExitDialog = true
-                            delay(1000)
-                            handleExit()
-                        }
-                    }
-                },
-                visible = isVisible.value,
-                title = "ZipCracker",
-                resizable = false,
-                icon = painterResource(Res.drawable.zipcracker)
-            ) {
-                if (showExitDialog) { CloseDialog() }
+        LaunchedEffect(windowState.size) {
+            windowLocationState = windowLocationState.copy(
+                width = windowState.size.width.value.toInt(),
+                height = windowState.size.height.value.toInt()
+            )
+        }
 
-                if (showConfirmDialog) {
-                    ConfirmDialog(
-                        icon = Icons.Default.Warning,
-                        title = stringResource(Res.string.warning_title, "Decrypting"),
-                        message = stringResource(Res.string.warning_message),
-                        positiveText = stringResource(Res.string.minimize),
-                        negativeText = stringResource(Res.string.close),
-                        onAccept = {
-                            isVisible.value = false
-                            showConfirmDialog = false
-                        },
-                        onExit = {
-                            scope.launch {
-                                showConfirmDialog = false
+        LaunchedEffect(windowState.position) {
+            windowLocationState = windowLocationState.copy(
+                x = windowState.position.x.value.toInt(),
+                y = windowState.position.y.value.toInt()
+            )
+        }
+
+        LaunchedEffect(state.value) {
+            delay(1000)
+            while (state.value == AppState.RUNNING) {
+                pwdConsumed = Watcher.pwdConsumed
+                elapsedTime = Watcher.timer
+                delay(1000)
+            }
+        }
+
+
+        if (load) {
+            ZipCrackerTheme(darkTheme = isDark) {
+                Window(
+                    state = windowState,
+                    onCloseRequest = {
+                        scope.launch {
+                            if (state.value == AppState.RUNNING) {
+                                showConfirmDialog = true
+                                delay(500)
+                            } else {
                                 showExitDialog = true
                                 delay(1000)
                                 handleExit()
                             }
                         }
-                    )
-                }
+                    },
+                    visible = isVisible.value,
+                    title = "ZipCracker",
+                    icon = painterResource(Res.drawable.zipcracker)
+                ) {
+                    if (showExitDialog) { CloseDialog() }
 
-                MenuBar {
-                    Menu("Themes") {
-                        CheckboxItem(
-                            "Dark",
-                            uiMode == Theme.DARK,
-                        ) {
-                            isDark = true
-                            uiMode = Theme.DARK
-                            scope.launch {
-                                datastore.updateData { it.copy(uiMode = Theme.DARK) }
+                    if (showConfirmDialog) {
+                        ConfirmDialog(
+                            icon = Icons.Default.Warning,
+                            title = stringResource(Res.string.warning_title, "Decrypting"),
+                            message = stringResource(Res.string.warning_message),
+                            positiveText = stringResource(Res.string.minimize),
+                            negativeText = stringResource(Res.string.close),
+                            onAccept = {
+                                isVisible.value = false
+                                showConfirmDialog = false
+                            },
+                            onExit = {
+                                scope.launch {
+                                    showConfirmDialog = false
+                                    showExitDialog = true
+                                    delay(1000)
+                                    handleExit()
+                                }
                             }
-                        }
-                        CheckboxItem(
-                            "Light",
-                            uiMode == Theme.LIGHT,
-                        ) {
-                            isDark = false
-                            uiMode = Theme.LIGHT
-                            scope.launch {
-                                datastore.updateData { it.copy(uiMode = Theme.LIGHT) }
+                        )
+                    }
+
+                    MenuBar {
+                        Menu("Themes") {
+                            CheckboxItem(
+                                "Dark",
+                                uiMode == Theme.DARK,
+                            ) {
+                                isDark = true
+                                uiMode = Theme.DARK
+                                scope.launch {
+                                    datastore.updateData { it.copy(uiMode = Theme.DARK) }
+                                }
                             }
-                        }
-                        CheckboxItem(
-                            "System",
-                            uiMode == Theme.SYSTEM,
-                        ) {
-                            uiMode = Theme.SYSTEM
-                            isDark = isDarkThemeActive()
-                            scope.launch {
-                                datastore.updateData { it.copy(uiMode = Theme.SYSTEM) }
+                            CheckboxItem(
+                                "Light",
+                                uiMode == Theme.LIGHT,
+                            ) {
+                                isDark = false
+                                uiMode = Theme.LIGHT
+                                scope.launch {
+                                    datastore.updateData { it.copy(uiMode = Theme.LIGHT) }
+                                }
+                            }
+                            CheckboxItem(
+                                "System",
+                                uiMode == Theme.SYSTEM,
+                            ) {
+                                uiMode = Theme.SYSTEM
+                                isDark = isDarkThemeActive()
+                                scope.launch {
+                                    datastore.updateData { it.copy(uiMode = Theme.SYSTEM) }
+                                }
                             }
                         }
                     }
-                }
 
-                App(this.window, state, pool, datastore)
+                    App(this.window, state, pool, datastore)
+                }
             }
         }
     }

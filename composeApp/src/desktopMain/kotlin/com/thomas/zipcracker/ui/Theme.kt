@@ -5,17 +5,46 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.WindowPosition
 import com.github.tkuenneth.nativeparameterstoreaccess.Dconf
 import com.github.tkuenneth.nativeparameterstoreaccess.Dconf.HAS_DCONF
 import com.github.tkuenneth.nativeparameterstoreaccess.MacOSDefaults
 import com.github.tkuenneth.nativeparameterstoreaccess.NativeParameterStoreAccess.IS_MACOS
 import com.github.tkuenneth.nativeparameterstoreaccess.NativeParameterStoreAccess.IS_WINDOWS
 import com.github.tkuenneth.nativeparameterstoreaccess.WindowsRegistry
+import kotlinx.serialization.Serializable
+import java.awt.Toolkit
 
 enum class Theme {
     LIGHT,
     DARK,
     SYSTEM,
+}
+
+@Serializable
+data class WindowLocation(
+    val x: Int,
+    val y: Int,
+    val width: Int,
+    val height: Int,
+) {
+    companion object {
+        fun default(): WindowLocation {
+            val screenSize = Toolkit.getDefaultToolkit().screenSize
+            return WindowLocation(
+                x = (screenSize.width - 800) / 2,
+                y = (screenSize.height - 960) / 2,
+                width = 800,
+                height = 960,
+            )
+        }
+    }
+
+    fun toComposePosition(): WindowPosition = WindowPosition.Absolute(x.dp, y.dp)
+
+    fun toComposeSize(): DpSize = DpSize(width.dp, height.dp)
 }
 
 private val DarkColorScheme: ColorScheme = darkColorScheme(

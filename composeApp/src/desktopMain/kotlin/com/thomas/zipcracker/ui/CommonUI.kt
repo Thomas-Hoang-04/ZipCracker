@@ -452,7 +452,7 @@ fun FileInput(
                 .clickable(
                     interactionSource = indicationSource,
                     indication = null,
-                    enabled = state.value != AppState.RUNNING
+                    enabled = state.value == AppState.NOT_INITIATED
                 ) {
                     launcher.launch()
                 },
@@ -468,13 +468,14 @@ fun FileInput(
                         ).clickable(
                             interactionSource = indicationSource,
                             indication = null,
+                            enabled = state.value == AppState.NOT_INITIATED,
                         ) { file.value = null }
                     )
             }
         )
         Spacer(modifier = Modifier.width(28.dp))
         Button(
-            enabled = state.value != AppState.RUNNING,
+            enabled = state.value == AppState.NOT_INITIATED,
             colors = ButtonDefaults.buttonColors(
                 contentColor = Color.White,
                 disabledContentColor = MaterialTheme.colorScheme.contentColorFor(
@@ -532,7 +533,7 @@ fun MultiFileInput(
                 .clickable(
                     interactionSource = indicationSource,
                     indication = null,
-                    enabled = state.value != AppState.RUNNING
+                    enabled = state.value == AppState.NOT_INITIATED
                 ) {
                     launcher.launch()
                 },
@@ -546,6 +547,7 @@ fun MultiFileInput(
                         modifier = Modifier.pointerHoverIcon(
                             PointerIcon(Cursor(Cursor.HAND_CURSOR))
                         ).clickable(
+                            enabled = state.value == AppState.NOT_INITIATED,
                             interactionSource = indicationSource,
                             indication = null,
                             onClick = files::clear
@@ -555,7 +557,7 @@ fun MultiFileInput(
         )
         Spacer(modifier = Modifier.width(28.dp))
         Button(
-            enabled = state.value != AppState.RUNNING,
+            enabled = state.value == AppState.NOT_INITIATED,
             colors = ButtonDefaults.buttonColors(
                 contentColor = Color.White,
                 disabledContentColor = MaterialTheme.colorScheme.contentColorFor(

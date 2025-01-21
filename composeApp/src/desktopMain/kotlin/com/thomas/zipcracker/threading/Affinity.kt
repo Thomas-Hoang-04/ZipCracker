@@ -7,7 +7,7 @@ import com.sun.jna.Native
 import com.sun.jna.NativeLong
 import com.sun.jna.platform.win32.Kernel32
 import com.sun.jna.platform.win32.WinNT
-import com.sun.jna.ptr.IntByReference
+import com.sun.jna.ptr.LongByReference
 
 @Suppress("FunctionName", "unused")
 interface WindowsAffinity: Kernel32 {
@@ -15,9 +15,9 @@ interface WindowsAffinity: Kernel32 {
         val INSTANCE: WindowsAffinity = Native.load("Kernel32", WindowsAffinity::class.java) as WindowsAffinity
     }
 
-    fun SetProcessAffinityMask(handle: WinNT.HANDLE, mask: Int): Boolean
+    fun SetProcessAffinityMask(handle: WinNT.HANDLE, mask: Long): Boolean
 
-    fun SetThreadAffinityMask(handle: WinNT.HANDLE, mask: Int): Int
+    fun SetThreadAffinityMask(handle: WinNT.HANDLE, mask: Long): Long
 }
 
 @Suppress("FunctionName")
@@ -29,10 +29,10 @@ interface LinuxAffinity: Library {
 
     fun pthread_self(): Long
 
-    fun pthread_setaffinity_np(tid: Long, cpusetsize: Int, cpuset: IntByReference): Int
+    fun pthread_setaffinity_np(tid: Long, cpusetsize: Int, cpuset: LongByReference): Int
 }
 
-fun setAffinity(mask: Int) {
+fun setAffinity(mask: Long) {
     when {
         IS_WINDOWS -> {
             val handle: WinNT.HANDLE = Kernel32.INSTANCE.GetCurrentThread()
@@ -41,7 +41,7 @@ fun setAffinity(mask: Int) {
         }
         IS_LINUX-> {
             val inst: LinuxAffinity = LinuxAffinity.INSTANCE
-            val maskRef = IntByReference(mask)
+            val maskRef = LongByReference(mask)
             val thread = inst.pthread_self()
             inst.pthread_setaffinity_np(thread, LinuxAffinity.CPU_SET_SIZE, maskRef)
         }

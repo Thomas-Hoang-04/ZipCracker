@@ -15,10 +15,10 @@ data class CrackingOptions(
     val opMode: OpMode,
     val maxPwdLength: Int = -1,
     val pwdOptions: Int = -1,
-    val threadMask: Int = run {
-        var mask = 0
+    val threadMask: Long = run {
+        var mask = 0L
         for (i in 0 until maxAllowedThread) {
-            mask = mask or (1 shl (maxThread - i - 1))
+            mask = mask or ((1 shl (maxThread - i - 1)).toLong())
         }
         mask
     }

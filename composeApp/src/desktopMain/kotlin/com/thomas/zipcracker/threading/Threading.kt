@@ -29,31 +29,32 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import kotlin.math.pow
 
-fun findOperationCPUIndex(mask: Int): List<Int> {
+fun findOperationCPUIndex(mask: Long, maxThread: Int): List<Int> {
     val res = mutableListOf<Int>()
-    repeat(12) {
-        if ((mask and (1 shl it)) != 0) res.add(it)
+    repeat(maxThread) {
+        if (mask and ((1 shl it).toLong()) != 0L) res.add(it)
     }
     return res
 }
 
 fun threadDistribution(
-    mask: Int,
+    mask: Long,
+    maxThread: Int,
     workerCount: Int,
-    maskQueue: ArrayDeque<Int>
+    maskQueue: ArrayDeque<Long>
 ) {
-    val cpuOpIdx = findOperationCPUIndex(mask)
+    val cpuOpIdx = findOperationCPUIndex(mask, maxThread)
     val workerPerThread = workerCount / (mask.countOneBits())
     for (opIdx in cpuOpIdx)
         repeat (workerPerThread) {
-            maskQueue.addLast(1 shl opIdx)
+            maskQueue.addLast((1 shl opIdx).toLong())
         }
 }
 
 class DictProducer(
     private val queue: BlockingQueue<String>,
     private val workerCount: Int,
-    private val mask: Int,
+    private val mask: Long,
     private val pwdPath: List<String>,
     private val lastPwdInfo: LastPwdMetadata? = null
 ): Thread() {
@@ -104,7 +105,7 @@ class DictProducer(
 class BruteProducer(
     private val queue: BlockingQueue<String>,
     private val workerCount: Int,
-    private val mask: Int,
+    private val mask: Long,
     private val maxSize: Int,
     private val pwdOptions: Int,
     private val lastPwd: String? = null
@@ -159,7 +160,7 @@ class BruteProducer(
 class Consumer<T>(
     private val queue: BlockingQueue<String>,
     private val latch: CountDownLatch,
-    private val mask: Int,
+    private val mask: Long,
     private val decryptor: Decryptor<T>,
     private val resultQueue: ConcurrentLinkedQueue<String>,
     private val pseudoWorker: Boolean = false,
@@ -200,7 +201,7 @@ class Consumer<T>(
 }
 
 class Tracker(
-    private val mask: Int,
+    private val mask: Long,
     private val dataStore: DataStore<UserPreferences>,
 ): Thread() {
     override fun run() {
@@ -284,8 +285,8 @@ fun crack(
 
     setAffinity(mask)
 
-    val distribution = ArrayDeque<Int>(worker)
-    threadDistribution(mask, worker, distribution)
+    val distribution = ArrayDeque<Long>(worker)
+    threadDistribution(mask, options.maxThread, worker, distribution)
     val latch = CountDownLatch(worker)
 
     val pwdQueue: BlockingQueue<String> = LinkedBlockingQueue(2000 * worker)
@@ -318,7 +319,7 @@ fun crack(
                 mask = assigned,
                 decryptor = decryptor,
                 resultQueue = result,
-                pseudoWorker = assigned == 0x1 && !IS_LINUX,
+                pseudoWorker = assigned == 0x1.toLong() && !IS_LINUX,
                 benchmark = options.opMode == OpMode.BENCHMARK
             )
         )

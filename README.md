@@ -9,12 +9,12 @@ _ZipCracker is a Compose Multiplatform Desktop app dedicated to efficiently crac
 ### Operation modes:
 - Brute-force attack: available combinations of alphanumeric characters (lowercase/uppercase) and special characters
 - Dictionary attack: Support reading multiple dictionary files _(Required format: TXT files, one password for each line)_
-- Benchmark mode: Testing with brute-force attack of 4-character password
+- Benchmark mode: Testing with brute-force attack of n-character password (minimum of 4)
 
 ### Features
 - Support multithreaded decryption
-- Support for ZIP file with WinZip AES encryption and ZIP 2.0 standard encryption _(single-password encryption only)_
-- Adaptive theme (Light/Dark/System)
+- Support for ZIP file with WinZip AES encryption and ZIP 2.0 standard encryption (ZipCrypto) _(single-password encrypted files only)_
+- Adaptive theme (Light/Dark/System), Snap Layout
 - Session recovery
 - Support for Windows and Linux _(from v2.1, refer to the Linux installation guide [here](https://github.com/Thomas-Hoang-04/ZipCracker/wiki/Linux-installation-guide))_
 

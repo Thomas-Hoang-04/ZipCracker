@@ -88,6 +88,12 @@ fun App(
 
     val pwdLength = remember { mutableIntStateOf(4) }
     val pwdLengthDisplay = remember { mutableStateOf(pwdLength.toString()) }
+    val pwdMaxLength by derivedStateOf {
+        if (opMode.value == OpMode.BENCHMARK) 8 else 10
+    }
+    val pwdMinLength by derivedStateOf {
+        if (opMode.value == OpMode.BENCHMARK) 3 else 1
+    }
 
     val focusManager = LocalFocusManager.current
     val interactionSource = remember { MutableInteractionSource() }
@@ -113,10 +119,6 @@ fun App(
 
     val showResult by derivedStateOf {
         state.value == AppState.COMPLETED || state.value == AppState.CANCELLED
-    }
-
-    val pwdMaxLength by derivedStateOf {
-        if (opMode.value == OpMode.BENCHMARK) 6 else 8
     }
 
     val scope = rememberCoroutineScope()
@@ -612,12 +614,12 @@ fun App(
                     buttonEnabled = state.value == AppState.NOT_INITIATED,
                     textReadOnly = state.value != AppState.NOT_INITIATED,
                     onValueChange = {
-                        pwdLength.value = if (pwdLength.value < 1) 1
+                        pwdLength.value = if (pwdLength.value < pwdMinLength) pwdMinLength
                         else if (pwdLength.value > pwdMaxLength) pwdMaxLength
                         else pwdLength.value
                     },
                     onFocusChanged = {
-                        if (pwdLength.value < 1) { pwdLength.value = 1 }
+                        if (pwdLength.value < pwdMinLength) { pwdLength.value = pwdMinLength }
                         else if (pwdLength.value > pwdMaxLength) { pwdLength.value = pwdMaxLength }
                         pwdLengthDisplay.value = pwdLength.value.toString()
                     }
@@ -626,13 +628,4 @@ fun App(
             Spacer(modifier = Modifier.height(32.dp))
         }
     }
-}
-
-@Composable
-@Preview
-fun AppPreview() {
-    App(parentWindow = null, state = mutableStateOf(AppState.NOT_INITIATED), pool = mutableListOf(), datastore = DataStoreFactory.create(
-        serializer = PreferencesSerializer(),
-        produceFile = { File("preferences.json") }
-    ))
 }

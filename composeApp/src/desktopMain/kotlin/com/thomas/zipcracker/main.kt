@@ -120,12 +120,17 @@ suspend fun main() {
                 Item(openPrompt) { isVisible.value = !isVisible.value }
                 Item("Exit") {
                     scope.launch {
+                        isVisible.value = true
+                        delay(500)
                         if (state.value == AppState.RUNNING) {
-                            isVisible.value = true
                             delay(500)
                             showConfirmDialog = true
                         }
-                        else handleExit()
+                        else {
+                            showExitDialog = true
+                            delay(1000)
+                            handleExit()
+                        }
                     }
                 }
             }

@@ -6,12 +6,14 @@ _**Disclaimer: This project is strictly for testing and research purposes only**
 
 _ZipCracker is a Compose Multiplatform Desktop app dedicated to efficiently cracking encrypted ZIP files on personal computers_
 
-### Techstack
+### Tools & Techstack
 <p>
-  <img src="https://img.shields.io/badge/-Kotlin-purple?style=for-the-badge&logo=kotlin&logoColor=white"/>
-  <img src="https://img.shields.io/badge/-Compose%20Multiplatform-blue?style=for-the-badge&logo=jetpack-compose&logoColor=white"/>
-  <img src="https://img.shields.io/badge/-Java%20Native%20Access-orange?style=for-the-badge&logo=openjdk"/>
-  <img src="https://img.shields.io/badge/-Android%20Studio-green?style=for-the-badge&logo=android-studio&logoColor=white"/>
+  <img alt="kotlin" src="https://img.shields.io/badge/-Kotlin-purple?style=for-the-badge&logo=kotlin&logoColor=white"/>
+  <img alt="compose-multiplatform" src="https://img.shields.io/badge/-Compose%20Multiplatform-blue?style=for-the-badge&logo=jetpack-compose&logoColor=white"/>
+  <img alt="jna" src="https://img.shields.io/badge/-Java%20Native%20Access-orange?style=for-the-badge&logo=openjdk"/>
+  <img alt="git" src="https://img.shields.io/badge/-Git-gray?style=for-the-badge&logo=git"/>
+  <img alt="github" src="https://img.shields.io/badge/-GitHub-black?style=for-the-badge&logo=github&logoColor=white"/>
+  <img alt="android-studio" src="https://img.shields.io/badge/-Android%20Studio-green?style=for-the-badge&logo=android-studio&logoColor=white"/>
 </p>
 
 ### Operation modes:

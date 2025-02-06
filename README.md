@@ -14,6 +14,7 @@ _ZipCracker is a Compose Multiplatform Desktop app dedicated to efficiently crac
   <img alt="git" src="https://img.shields.io/badge/-Git-gray?style=for-the-badge&logo=git"/>
   <img alt="github" src="https://img.shields.io/badge/-GitHub-black?style=for-the-badge&logo=github&logoColor=white"/>
   <img alt="android-studio" src="https://img.shields.io/badge/-Android%20Studio-green?style=for-the-badge&logo=android-studio&logoColor=white"/>
+  <img alt="intellij" src="https://img.shields.io/badge/-IntelliJ%20IDEA-orange?style=for-the-badge&logo=intellij-idea&logoColor=white"/>
 </p>
 
 ### Operation modes:
@@ -30,15 +31,9 @@ _ZipCracker is a Compose Multiplatform Desktop app dedicated to efficiently crac
 
 _**Note on features**: maximum passwords length are being limited to 10 characters due to consideration for practicality - this is for personal use, after all_
 
-### Repository content
+### Repository branches
 - `main`: Contain the original backbone logic for the decryption process _(Partially complete)_
 - `app`: Contain code for the app GUI (Require Android Studio with Compose Multiplatform support) _(Optimized, with refined decryption and multithreading logic)_
-
-### Main stack
-- [Kotlin v2.1.0 by JetBrains](https://kotlinlang.org/)
-- [Compose Multiplatform v1.7.3](https://www.jetbrains.com/compose-multiplatform/?utm_campaign=kmp&utm_medium=docs&utm_source=github) _(Desktop GUI)_
-- [Java Native Access (JNA) library](https://github.com/java-native-access/jna?tab=readme-ov-file) _(native access to OS API for multithreading support)_
-- IDE: Android Studio (Version 2024.3.1 Meerkat) & IntelliJ IDEA Ultimate (Version 2024.2.5)
 
 ### Special thanks to
 - Mr Nguyễn Quốc Khánh (My project instructor at HUST)

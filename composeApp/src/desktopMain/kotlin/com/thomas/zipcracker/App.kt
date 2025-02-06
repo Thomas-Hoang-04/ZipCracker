@@ -1,6 +1,5 @@
 package com.thomas.zipcracker
 
-import androidx.compose.desktop.ui.tooling.preview.Preview
 import androidx.compose.foundation.Image
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -24,7 +23,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.datastore.core.DataStore
-import androidx.datastore.core.DataStoreFactory
 import com.thomas.zipcracker.metadata.AppState
 import com.thomas.zipcracker.crypto.CrackingOptions
 import com.thomas.zipcracker.metadata.LastPwdMetadata
@@ -44,7 +42,6 @@ import com.thomas.zipcracker.ui.MultiFileInput
 import com.thomas.zipcracker.ui.ResultDetails
 import com.thomas.zipcracker.ui.ResultTitle
 import com.thomas.zipcracker.ui.Tracker
-import com.thomas.zipcracker.utility.PreferencesSerializer
 import com.thomas.zipcracker.utility.checkZIPEncryption
 import io.github.vinceglb.filekit.compose.rememberDirectoryPickerLauncher
 import io.github.vinceglb.filekit.compose.rememberFilePickerLauncher

@@ -53,7 +53,7 @@ compose.desktop {
 
             targetFormats(TargetFormat.Msi, TargetFormat.Deb)
             packageName = "ZipCracker"
-            packageVersion = "2.2.0"
+            packageVersion = "2.3.0"
             description = "ZipCracker"
             copyright = "© 2024 Thomas. All rights reserved"
             vendor = "Thomas"
@@ -75,7 +75,7 @@ compose.desktop {
                 iconFile.set(file("appIcon/ZipCracker.png"))
                 debMaintainer = "minhhaihoang2312@gmail.com"
                 menuGroup = "ZipCracker"
-                debPackageVersion = "1.1.0"
+                debPackageVersion = "1.2.0"
                 includeAllModules = true
             }
         }
